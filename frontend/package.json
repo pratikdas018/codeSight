@@ -1,0 +1,40 @@
+{
+  "name": "codesight-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "React frontend for CodeSight",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "codesight",
+    "react",
+    "visualizer"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/acorn": "^4.0.6",
+    "@types/d3-scale": "^4.0.9",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.9"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "acorn": "^8.16.0",
+    "clsx": "^2.1.1",
+    "d3": "^7.9.0",
+    "framer-motion": "^12.38.0",
+    "monaco-editor": "^0.55.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  }
+}

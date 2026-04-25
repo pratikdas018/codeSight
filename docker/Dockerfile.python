@@ -1,0 +1,5 @@
+FROM python:3.12-slim
+
+WORKDIR /workspace
+
+COPY docker/runners/python_trace.py /opt/codesight/python_trace.py
