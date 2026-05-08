@@ -1,0 +1,12 @@
+{$EXECUTOR_DOMAIN} {
+  encode zstd gzip
+
+  @health path /health
+  handle @health {
+    reverse_proxy executor:8081
+  }
+
+  handle {
+    reverse_proxy executor:8081
+  }
+}

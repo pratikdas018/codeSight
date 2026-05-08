@@ -81,7 +81,7 @@ export const SnippetDashboard = ({
                         : "bg-mist text-ink"
                     }`}
                   >
-                    {snippet._count?.executionHistories ?? 0} runs
+                    {snippet.executionCount ?? 0} runs
                   </span>
                 </div>
               </div>

@@ -11,26 +11,22 @@ export type SupportedLanguage =
   | "cpp"
   | "java";
 
-export interface AuthResponse {
-  token: string;
-  user: User;
-}
-
 export interface CodeSnippet {
   id: string;
+  userId: string;
   title: string;
   language: SupportedLanguage;
   code: string;
   createdAt: string;
-  _count?: {
-    executionHistories: number;
-  };
+  executionCount?: number;
 }
 
 export interface ExecutionHistoryRecord {
   id: string;
-  codeSnippetId: string;
+  userId: string;
+  snippetId: string;
   output?: string | null;
+  executionTime: number;
   createdAt: string;
   codeSnippet: {
     id: string;

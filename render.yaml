@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: codesight-api
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./docker/Dockerfile.api
+    dockerContext: .
+    autoDeployTrigger: off
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        sync: false
+      - key: TRUST_PROXY
+        value: true
+      - key: EXECUTOR_MODE
+        value: remote
+      - key: REMOTE_EXECUTOR_URL
+        sync: false
+      - key: EXECUTOR_SHARED_SECRET
+        sync: false
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 60000
+      - key: RATE_LIMIT_MAX
+        value: 60
+      - key: LOG_LEVEL
+        value: info

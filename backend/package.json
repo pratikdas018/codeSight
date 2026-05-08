@@ -2,38 +2,37 @@
   "name": "codesight-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Express and Prisma backend for CodeSight",
+  "description": "Execution backend for CodeSight",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "node scripts/ensureSqliteSchema.js && tsx watch src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "dev:executor": "tsx watch src/executorIndex.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node scripts/ensureSqliteSchema.js && node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "node scripts/ensureSqliteSchema.js",
-    "prisma:studio": "prisma studio"
+    "start": "node dist/index.js",
+    "start:api": "node dist/index.js",
+    "start:executor": "node dist/executorIndex.js"
   },
   "keywords": [
     "codesight",
     "express",
-    "prisma"
+    "execution"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/client": "^6.18.0",
     "acorn": "^8.16.0",
-    "bcrypt": "^6.0.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.18.0"
+    "express-rate-limit": "^8.5.1",
+    "helmet": "^8.1.0",
+    "pino-http": "^11.0.0"
   },
   "devDependencies": {
-    "@types/bcrypt": "^6.0.0",
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.6.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"

@@ -1,0 +1,72 @@
+services:
+  api:
+    image: ${CODESIGHT_API_IMAGE:-ghcr.io/prakitdas018/codesight-api:latest}
+    profiles: ["full-stack"]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      FRONTEND_URL: ${FRONTEND_URL}
+      TRUST_PROXY: ${TRUST_PROXY:-loopback}
+      EXECUTOR_MODE: remote
+      REMOTE_EXECUTOR_URL: https://${EXECUTOR_DOMAIN}/internal/execute
+      REMOTE_EXECUTOR_TIMEOUT_MS: ${REMOTE_EXECUTOR_TIMEOUT_MS:-20000}
+      EXECUTOR_SHARED_SECRET: ${EXECUTOR_SHARED_SECRET}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "4000:4000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+
+  executor:
+    image: ${CODESIGHT_EXECUTOR_IMAGE:-ghcr.io/prakitdas018/codesight-executor:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8081
+      EXECUTOR_SHARED_SECRET: ${EXECUTOR_SHARED_SECRET}
+      EXECUTION_PROVIDER: docker
+      DOCKER_BIN: docker
+      EXECUTION_TIMEOUT_MS: ${EXECUTION_TIMEOUT_MS:-5000}
+      EXECUTION_MEMORY_LIMIT: ${EXECUTION_MEMORY_LIMIT:-256m}
+      EXECUTION_CPU_LIMIT: ${EXECUTION_CPU_LIMIT:-0.5}
+      EXECUTION_PIDS_LIMIT: ${EXECUTION_PIDS_LIMIT:-64}
+      NODE_EXECUTOR_IMAGE: ${NODE_EXECUTOR_IMAGE:-ghcr.io/prakitdas018/codesight-node-runner:latest}
+      PYTHON_EXECUTOR_IMAGE: ${PYTHON_EXECUTOR_IMAGE:-ghcr.io/prakitdas018/codesight-python-runner:latest}
+      CPP_EXECUTOR_IMAGE: ${CPP_EXECUTOR_IMAGE:-ghcr.io/prakitdas018/codesight-cpp-runner:latest}
+      JAVA_EXECUTOR_IMAGE: ${JAVA_EXECUTOR_IMAGE:-ghcr.io/prakitdas018/codesight-java-runner:latest}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_CONFIG_PATH:-/root/.docker}:/root/.docker:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,exec
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  executor-proxy:
+    image: caddy:2.10-alpine
+    depends_on:
+      - executor
+    restart: unless-stopped
+    environment:
+      EXECUTOR_DOMAIN: ${EXECUTOR_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -17,13 +17,25 @@ export interface LocalSnippetRecord {
   source: "local";
 }
 
-export type MenuAction =
+export interface RecentFileRecord {
+  filePath: string;
+  name: string;
+  lastOpenedAt: string;
+}
+
+export type MenuActionType =
   | "file:new"
   | "file:open"
+  | "file:open-recent"
   | "file:save"
   | "file:save-local-snippet"
   | "file:load-local-snippet"
   | "run:execute";
+
+export interface MenuActionEvent {
+  type: MenuActionType;
+  filePath?: string;
+}
 
 const extensionLanguageMap: Record<string, SupportedLanguage> = {
   ".js": "javascript",

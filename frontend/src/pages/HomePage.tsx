@@ -1,7 +1,10 @@
 import {
   type FormEvent,
   type MouseEvent,
+  startTransition,
+  useDeferredValue,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -11,16 +14,18 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import clsx from "clsx";
 import { ArrayVisualizer } from "../components/ArrayVisualizer";
+import { ToastViewport } from "../components/ToastViewport";
 import { useAuth } from "../hooks/useAuth";
 import { usePlayback } from "../hooks/usePlayback";
+import { createExecutionHistory, listExecutionHistory } from "../services/historyService";
 import {
-  executeCodeRequest,
-  getCodeRequest,
-  getCodesRequest,
-  getHistoryRequest,
-  saveHistoryRequest,
-  saveMultiLanguageCodeRequest,
-} from "../utils/api";
+  createSnippet,
+  deleteSnippet as deleteSnippetRecord,
+  getSnippetById,
+  listSnippets,
+  updateSnippet,
+} from "../services/snippetService";
+import { executeCodeRequest } from "../utils/api";
 import type { ExecutionTrace } from "../engine/types";
 import type {
   CodeSnippet,
@@ -28,6 +33,12 @@ import type {
   Notice,
   SupportedLanguage,
 } from "../utils/types";
+import {
+  buildSuggestedFileName,
+  inferLanguageFromPath,
+  type MenuActionEvent,
+  type RecentFileRecord,
+} from "../utils/desktop";
 import { formatDate } from "../utils/formatters";
 import { createVisualizationModel } from "../visualization/model";
 
@@ -267,10 +278,24 @@ export const HomePage = () => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isManagingDesktopFiles, setIsManagingDesktopFiles] = useState(false);
+  const [desktopFilePath, setDesktopFilePath] = useState<string | null>(null);
+  const [desktopFileName, setDesktopFileName] = useState<string | null>(null);
+  const [recentFiles, setRecentFiles] = useState<RecentFileRecord[]>([]);
   const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { token, user, isAuthenticating, authenticate, logout } = useAuth();
+  const {
+    session,
+    user,
+    pendingConfirmationEmail,
+    isLoading: isAuthLoading,
+    isAuthenticating,
+    authenticate,
+    resendConfirmation,
+    logout,
+  } = useAuth();
+  const isDesktop = Boolean(window.electronAPI?.env.isElectron);
 
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const decorationsRef =
@@ -341,7 +366,8 @@ export const HomePage = () => {
         ? 100
         : 0
       : (currentStepIndex / (trace.steps.length - 1)) * 100;
-  const codeLines = useMemo(() => code.split(/\r?\n/), [code]);
+  const deferredCode = useDeferredValue(code);
+  const codeLines = useMemo(() => deferredCode.split(/\r?\n/), [deferredCode]);
   const activeLineCode =
     activeStep?.line && activeStep.line > 0
       ? codeLines[activeStep.line - 1]?.trim() ?? ""
@@ -369,31 +395,260 @@ export const HomePage = () => {
           "Watch the variable cards to see what changed on this step.",
         ];
 
-  const refreshWorkspaceData = async (authToken: string) => {
+  const enrichSnippetsWithExecutionCounts = (
+    snippetList: CodeSnippet[],
+    historyList: ExecutionHistoryRecord[],
+  ) => {
+    const counts = historyList.reduce<Map<string, number>>((accumulator, entry) => {
+      accumulator.set(
+        entry.snippetId,
+        (accumulator.get(entry.snippetId) ?? 0) + 1,
+      );
+      return accumulator;
+    }, new Map<string, number>());
+
+    return snippetList.map((snippet) => ({
+      ...snippet,
+      executionCount: counts.get(snippet.id) ?? 0,
+    }));
+  };
+
+  const refreshWorkspaceData = async () => {
     setIsRefreshing(true);
 
     try {
       const [snippetList, historyList] = await Promise.all([
-        getCodesRequest(authToken),
-        getHistoryRequest(authToken),
+        listSnippets(),
+        listExecutionHistory(),
       ]);
 
-      setSnippets(snippetList);
+      setSnippets(enrichSnippetsWithExecutionCounts(snippetList, historyList));
       setHistory(historyList);
     } finally {
       setIsRefreshing(false);
     }
   };
 
+  const refreshRecentFiles = async () => {
+    if (!window.electronAPI) {
+      return;
+    }
+
+    const nextRecentFiles = await window.electronAPI.getRecentFiles();
+    setRecentFiles(nextRecentFiles);
+  };
+
+  const resetWorkspace = (nextLanguage: SupportedLanguage) => {
+    setTrace(createEmptyTrace(nextLanguage));
+    setCurrentStepIndex(0);
+    setCurrentSnippetId(null);
+    setActiveWorkspaceTab("explorer");
+    setActiveRailSection("guide");
+  };
+
+  const applyEditorDocument = ({
+    nextLanguage,
+    nextTitle,
+    nextCode,
+    nextFilePath,
+    nextFileName,
+  }: {
+    nextLanguage: SupportedLanguage;
+    nextTitle: string;
+    nextCode: string;
+    nextFilePath: string | null;
+    nextFileName: string | null;
+  }) => {
+    stopPlayback();
+    setIsPlaying(false);
+
+    startTransition(() => {
+      setLanguage(nextLanguage);
+      setTitle(nextTitle);
+      setCode(nextCode);
+      setDesktopFilePath(nextFilePath);
+      setDesktopFileName(nextFileName);
+      resetWorkspace(nextLanguage);
+    });
+  };
+
+  const createNewDesktopFile = () => {
+    applyEditorDocument({
+      nextLanguage: language,
+      nextTitle: "Untitled",
+      nextCode: "",
+      nextFilePath: null,
+      nextFileName: null,
+    });
+    setNotice({
+      tone: "success",
+      message: "Started a new local file in the desktop workspace.",
+    });
+  };
+
+  const openDesktopFile = async (filePath?: string) => {
+    if (!window.electronAPI) {
+      return;
+    }
+
+    setIsManagingDesktopFiles(true);
+
+    try {
+      const result = await window.electronAPI.openFile(filePath);
+
+      if (result.canceled || typeof result.content !== "string") {
+        return;
+      }
+
+      const resolvedPath = result.filePath ?? filePath ?? null;
+      const resolvedName =
+        result.name ??
+        (resolvedPath ? resolvedPath.split(/[/\\]/).pop() ?? null : null);
+      const nextLanguage = inferLanguageFromPath(
+        resolvedPath ?? resolvedName ?? languageFiles[language],
+      );
+      const nextTitle =
+        resolvedName?.replace(/\.[^.]+$/, "") || LANGUAGE_PRESETS[nextLanguage].title;
+
+      applyEditorDocument({
+        nextLanguage,
+        nextTitle,
+        nextCode: result.content,
+        nextFilePath: resolvedPath,
+        nextFileName: resolvedName,
+      });
+      await refreshRecentFiles();
+      setNotice({
+        tone: "success",
+        message: `Loaded "${resolvedName ?? "local file"}" into the editor.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "Unable to open the file.",
+      });
+    } finally {
+      setIsManagingDesktopFiles(false);
+    }
+  };
+
+  const saveDesktopFile = async () => {
+    if (!window.electronAPI) {
+      return;
+    }
+
+    setIsManagingDesktopFiles(true);
+
+    try {
+      const result = await window.electronAPI.saveFile({
+        filePath: desktopFilePath,
+        content: code,
+        suggestedName: buildSuggestedFileName(title, language),
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const nextFileName = result.name ?? desktopFileName ?? buildSuggestedFileName(title, language);
+      setDesktopFilePath(result.filePath ?? desktopFilePath);
+      setDesktopFileName(nextFileName);
+      await refreshRecentFiles();
+      setNotice({
+        tone: "success",
+        message: `Saved "${nextFileName}" to your device.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "Unable to save the file.",
+      });
+    } finally {
+      setIsManagingDesktopFiles(false);
+    }
+  };
+
+  const saveDesktopSnippet = async () => {
+    if (!window.electronAPI) {
+      return;
+    }
+
+    setIsManagingDesktopFiles(true);
+
+    try {
+      const savedSnippet = await window.electronAPI.saveSnippetLocally({
+        title: title.trim() || "Untitled snippet",
+        language,
+        code,
+      });
+
+      setNotice({
+        tone: "success",
+        message: `Saved "${savedSnippet.title}" as a local CodeSight snippet.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to save the local snippet.",
+      });
+    } finally {
+      setIsManagingDesktopFiles(false);
+    }
+  };
+
+  const openLocalDesktopSnippet = async () => {
+    if (!window.electronAPI) {
+      return;
+    }
+
+    setIsManagingDesktopFiles(true);
+
+    try {
+      const result = await window.electronAPI.openLocalSnippet();
+
+      if (result.canceled || !result.snippet) {
+        return;
+      }
+
+      applyEditorDocument({
+        nextLanguage: result.snippet.language,
+        nextTitle: result.snippet.title,
+        nextCode: result.snippet.code,
+        nextFilePath: result.filePath ?? result.snippet.filePath,
+        nextFileName:
+          (result.filePath ?? result.snippet.filePath).split(/[/\\]/).pop() ?? null,
+      });
+      setNotice({
+        tone: "success",
+        message: `Loaded local snippet "${result.snippet.title}".`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to load the local snippet.",
+      });
+    } finally {
+      setIsManagingDesktopFiles(false);
+    }
+  };
+
   useEffect(() => {
-    if (!token) {
+    if (!session?.user || !user) {
       setSnippets([]);
       setHistory([]);
       setCurrentSnippetId(null);
       return;
     }
 
-    refreshWorkspaceData(token).catch((error) => {
+    refreshWorkspaceData().catch((error) => {
       setNotice({
         tone: "error",
         message:
@@ -402,7 +657,48 @@ export const HomePage = () => {
             : "Unable to load account data.",
       });
     });
-  }, [token]);
+  }, [session, user]);
+
+  const handleDesktopMenuAction = useEffectEvent((event: MenuActionEvent) => {
+    switch (event.type) {
+      case "file:new":
+        createNewDesktopFile();
+        return;
+      case "file:open":
+        void openDesktopFile();
+        return;
+      case "file:open-recent":
+        if (event.filePath) {
+          void openDesktopFile(event.filePath);
+        }
+        return;
+      case "file:save":
+        void saveDesktopFile();
+        return;
+      case "file:save-local-snippet":
+        void saveDesktopSnippet();
+        return;
+      case "file:load-local-snippet":
+        void openLocalDesktopSnippet();
+        return;
+      case "run:execute":
+        void runCode();
+        return;
+    }
+  });
+
+  useEffect(() => {
+    if (!window.electronAPI) {
+      return;
+    }
+
+    refreshRecentFiles().catch(() => undefined);
+    const unsubscribe = window.electronAPI.onMenuAction((event) => {
+      handleDesktopMenuAction(event);
+    });
+
+    return unsubscribe;
+  }, [handleDesktopMenuAction]);
 
   useEffect(() => {
     if (currentStepIndex >= trace.steps.length && trace.steps.length > 0) {
@@ -534,13 +830,21 @@ export const HomePage = () => {
         });
       }
 
-      if (!token || !currentSnippetId) {
+      if (!user || !currentSnippetId) {
         return;
       }
 
       try {
-        await saveHistoryRequest(token, currentSnippetId, nextTrace.output);
-        await refreshWorkspaceData(token);
+        await createExecutionHistory({
+          userId: user.id,
+          snippetId: currentSnippetId,
+          output:
+            nextTrace.output ||
+            nextTrace.outputLines.join("\n") ||
+            undefined,
+          executionTime: nextTrace.executionTime,
+        });
+        await refreshWorkspaceData();
       } catch (error) {
         setNotice({
           tone: "error",
@@ -566,10 +870,12 @@ export const HomePage = () => {
   };
 
   const saveCode = async () => {
-    if (!token) {
+    if (!user) {
       setNotice({
         tone: "error",
-        message: "Create an account or log in before saving snippets.",
+        message: pendingConfirmationEmail
+          ? `Confirm ${pendingConfirmationEmail} from your inbox, then log in before saving snippets.`
+          : "Create an account or log in before saving snippets.",
       });
       return;
     }
@@ -577,19 +883,22 @@ export const HomePage = () => {
     setIsSaving(true);
 
     try {
-      const savedSnippet = await saveMultiLanguageCodeRequest(
-        token,
-        title.trim() || "Untitled snippet",
+      const snippetPayload = {
+        userId: user.id,
+        title: title.trim() || "Untitled snippet",
         language,
         code,
-      );
+      };
+      const savedSnippet = currentSnippetId
+        ? await updateSnippet(currentSnippetId, snippetPayload)
+        : await createSnippet(snippetPayload);
 
       setCurrentSnippetId(savedSnippet.id);
       setTitle(savedSnippet.title);
-      await refreshWorkspaceData(token);
+      await refreshWorkspaceData();
       setNotice({
         tone: "success",
-        message: `Saved "${savedSnippet.title}" to your dashboard.`,
+        message: `${currentSnippetId ? "Updated" : "Saved"} "${savedSnippet.title}" to your dashboard.`,
       });
     } catch (error) {
       setNotice({
@@ -602,17 +911,19 @@ export const HomePage = () => {
   };
 
   const loadSnippet = async (snippetId: string) => {
-    if (!token) {
+    if (!user) {
       return;
     }
 
     try {
-      const snippet = await getCodeRequest(token, snippetId);
+      const snippet = await getSnippetById(snippetId);
       stopPlayback();
       setLanguage(snippet.language);
       setCurrentSnippetId(snippet.id);
       setTitle(snippet.title);
       setCode(snippet.code);
+      setDesktopFilePath(null);
+      setDesktopFileName(null);
       setTrace(createEmptyTrace(snippet.language));
       setCurrentStepIndex(0);
       setNotice({
@@ -628,12 +939,38 @@ export const HomePage = () => {
     }
   };
 
+  const deleteSnippet = async (snippetId: string, snippetTitle: string) => {
+    if (!user) {
+      return;
+    }
+
+    try {
+      await deleteSnippetRecord(snippetId, user.id);
+      if (currentSnippetId === snippetId) {
+        setCurrentSnippetId(null);
+      }
+      await refreshWorkspaceData();
+      setNotice({
+        tone: "success",
+        message: `Deleted "${snippetTitle}" from your library.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "Unable to delete snippet.",
+      });
+    }
+  };
+
   const handleLanguageChange = (nextLanguage: SupportedLanguage) => {
     stopPlayback();
     setIsPlaying(false);
     setLanguage(nextLanguage);
     setTitle(LANGUAGE_PRESETS[nextLanguage].title);
     setCode(LANGUAGE_PRESETS[nextLanguage].code);
+    setDesktopFilePath(null);
+    setDesktopFileName(null);
     setTrace(createEmptyTrace(nextLanguage));
     setCurrentStepIndex(0);
     setCurrentSnippetId(null);
@@ -649,10 +986,20 @@ export const HomePage = () => {
     authPassword: string,
   ) => {
     try {
-      const authenticatedUser = await authenticate(mode, authEmail, authPassword);
+      const result = await authenticate(mode, authEmail, authPassword);
+
+      if (result.status === "pending_confirmation") {
+        setAuthMode("login");
+        setNotice({
+          tone: "success",
+          message: `Account created for ${result.email}. Confirm the email from your inbox, then log in to save snippets.`,
+        });
+        return;
+      }
+
       setNotice({
         tone: "success",
-        message: `${mode === "signup" ? "Welcome" : "Welcome back"}, ${authenticatedUser.email}.`,
+        message: `${mode === "signup" ? "Welcome" : "Welcome back"}, ${result.user.email}.`,
       });
     } catch (error) {
       setNotice({
@@ -667,6 +1014,39 @@ export const HomePage = () => {
     event.preventDefault();
     await handleAuthenticate(authMode, email, password);
     setPassword("");
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setNotice({
+        tone: "success",
+        message: "Signed out of your Supabase session.",
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to log out.",
+      });
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    try {
+      await resendConfirmation(email.trim() || undefined);
+      setNotice({
+        tone: "success",
+        message: `Confirmation email sent to ${email.trim() || pendingConfirmationEmail}.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to resend confirmation email.",
+      });
+    }
   };
 
   const handleTimelineClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -733,6 +1113,8 @@ export const HomePage = () => {
     stopPlayback();
     setTitle(LANGUAGE_PRESETS[language].title);
     setCode(LANGUAGE_PRESETS[language].code);
+    setDesktopFilePath(null);
+    setDesktopFileName(null);
     setTrace(createEmptyTrace(language));
     setCurrentStepIndex(0);
     setCurrentSnippetId(null);
@@ -832,6 +1214,31 @@ export const HomePage = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {isDesktop ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  void openDesktopFile();
+                }}
+                disabled={isManagingDesktopFiles}
+                className="rounded-md border border-white/10 bg-[#1f2229] px-3 py-2 text-sm text-slate-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Open
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void saveDesktopFile();
+                }}
+                disabled={isManagingDesktopFiles}
+                className="rounded-md border border-white/10 bg-[#1f2229] px-3 py-2 text-sm text-slate-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isManagingDesktopFiles ? "Working..." : "Save File"}
+              </button>
+            </>
+          ) : null}
+
           <label className="hidden items-center gap-2 rounded-md border border-white/10 bg-[#1d2026] px-3 py-1.5 text-sm text-slate-200 md:flex">
             <span className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.18em] text-cyan-300">
               {languageRunLabels[language]}
@@ -913,8 +1320,40 @@ export const HomePage = () => {
         </div>
       </header>
 
-      <div className="flex pt-16">
-        <nav className="fixed left-0 top-16 hidden h-[calc(100vh-64px)] w-16 flex-col items-center gap-5 border-r border-white/10 bg-[#0b0e14] py-4 md:flex">
+      {isDesktop ? (
+        <div className="fixed inset-x-0 top-16 z-40 flex min-h-10 items-center justify-between border-b border-white/10 bg-[#10141c]/90 px-4 py-2 text-xs text-slate-400 backdrop-blur md:px-6">
+          <div className="min-w-0">
+            <span className="font-mono uppercase tracking-[0.2em] text-slate-500">
+              Workspace
+            </span>
+            <span className="ml-3 truncate text-slate-200">
+              {desktopFilePath ?? "Unsaved local file"}
+            </span>
+          </div>
+          <div className="hidden items-center gap-2 md:flex">
+            {recentFiles.slice(0, 3).map((entry) => (
+              <button
+                key={entry.filePath}
+                type="button"
+                onClick={() => {
+                  void openDesktopFile(entry.filePath);
+                }}
+                className="rounded-full border border-white/10 px-3 py-1 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
+              >
+                {entry.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className={clsx("flex", isDesktop ? "pt-[6.5rem]" : "pt-16")}>
+        <nav
+          className={clsx(
+            "fixed left-0 hidden w-16 flex-col items-center gap-5 border-r border-white/10 bg-[#0b0e14] py-4 md:flex",
+            isDesktop ? "top-[6.5rem] h-[calc(100vh-104px)]" : "top-16 h-[calc(100vh-64px)]",
+          )}
+        >
           {sideRailIcons.map((icon, index) => {
             const actions: Array<{
               icon: (typeof sideRailIcons)[number];
@@ -951,7 +1390,12 @@ export const HomePage = () => {
           })}
         </nav>
 
-        <div className="flex min-h-[calc(100vh-64px)] flex-1 flex-col md:ml-16">
+        <div
+          className={clsx(
+            "flex flex-1 flex-col md:ml-16",
+            isDesktop ? "min-h-[calc(100vh-104px)]" : "min-h-[calc(100vh-64px)]",
+          )}
+        >
           <div className="flex flex-1 flex-col overflow-hidden pb-28 xl:flex-row">
             <motion.section
               initial={{ opacity: 0, x: -16 }}
@@ -1443,33 +1887,49 @@ export const HomePage = () => {
                         </p>
                       ) : (
                         snippets.slice(0, 5).map((snippet) => (
-                          <button
+                          <div
                             key={snippet.id}
-                            type="button"
-                            onClick={() => {
-                              void loadSnippet(snippet.id);
-                            }}
                             className={clsx(
-                              "w-full rounded border px-4 py-3 text-left transition",
+                              "rounded border px-4 py-3 transition",
                               currentSnippetId === snippet.id
                                 ? "border-cyan-400/35 bg-cyan-400/10"
                                 : "border-white/5 bg-[#151921] hover:border-white/15",
                             )}
                           >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void loadSnippet(snippet.id);
+                                }}
+                                className="min-w-0 flex-1 text-left"
+                              >
                                 <div className="truncate text-sm font-semibold text-[#e1e2eb]">
                                   {snippet.title}
                                 </div>
                                 <div className="mt-1 text-xs text-slate-500">
                                   {formatDate(snippet.createdAt)}
                                 </div>
-                              </div>
-                              <span className="rounded bg-[#1d2026] px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300">
-                                {snippet.language}
-                              </span>
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                  <span className="rounded bg-[#1d2026] px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300">
+                                    {snippet.language}
+                                  </span>
+                                  <span className="rounded bg-cyan-400/10 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-cyan-200">
+                                    {snippet.executionCount ?? 0} runs
+                                  </span>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void deleteSnippet(snippet.id, snippet.title);
+                                }}
+                                className="rounded border border-white/10 bg-[#10141d] px-3 py-2 text-[11px] uppercase tracking-[0.12em] text-slate-400 transition hover:border-rose-400/35 hover:text-rose-200"
+                              >
+                                Delete
+                              </button>
                             </div>
-                          </button>
+                          </div>
                         ))
                       )}
                     </div>
@@ -1491,7 +1951,9 @@ export const HomePage = () => {
                       {user ? (
                         <button
                           type="button"
-                          onClick={logout}
+                          onClick={() => {
+                            void handleLogout();
+                          }}
                           className="rounded border border-white/10 bg-[#151921] px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5"
                         >
                           Log out
@@ -1551,6 +2013,10 @@ export const HomePage = () => {
                           </div>
                         </div>
                       </div>
+                    ) : isAuthLoading ? (
+                      <div className="rounded border border-white/5 bg-[#151921] p-4 text-sm text-slate-400">
+                        Restoring your Supabase session...
+                      </div>
                     ) : (
                       <form onSubmit={handleAuthSubmit} className="space-y-3">
                         <input
@@ -1572,32 +2038,38 @@ export const HomePage = () => {
                         />
                         <button
                           type="submit"
-                          disabled={isAuthenticating}
+                          disabled={isAuthenticating || isAuthLoading}
                           className="w-full rounded bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                         >
-                          {isAuthenticating
+                          {isAuthLoading
+                            ? "Restoring session..."
+                            : isAuthenticating
                             ? "Working..."
                             : authMode === "signup"
                               ? "Create account"
                               : "Log in"}
                         </button>
+                        {pendingConfirmationEmail ? (
+                          <div className="rounded border border-amber-400/20 bg-amber-400/10 px-3 py-3 text-sm text-amber-100">
+                            <p>
+                              Confirm <span className="font-semibold">{pendingConfirmationEmail}</span> from your inbox before logging in and saving snippets.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void handleResendConfirmation();
+                              }}
+                              className="mt-3 rounded border border-amber-300/25 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-50 transition hover:bg-white/10"
+                            >
+                              Resend confirmation
+                            </button>
+                          </div>
+                        ) : null}
                       </form>
                     )}
                   </section>
                 </div>
 
-                {notice ? (
-                  <section
-                    className={clsx(
-                      "rounded-lg border px-4 py-3 text-sm",
-                      notice.tone === "success"
-                        ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"
-                        : "border-rose-400/20 bg-rose-400/10 text-rose-100",
-                    )}
-                  >
-                    {notice.message}
-                  </section>
-                ) : null}
               </div>
             </motion.section>
           </div>
@@ -1701,6 +2173,7 @@ export const HomePage = () => {
           </div>
         </div>
       </footer>
+      <ToastViewport notice={notice} onDismiss={() => setNotice(null)} />
     </main>
   );
 };

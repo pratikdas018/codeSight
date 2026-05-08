@@ -1,0 +1,19 @@
+FROM node:20-alpine AS deps
+WORKDIR /app/backend
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci
+
+FROM deps AS build
+COPY backend/tsconfig.json ./tsconfig.json
+COPY backend/src ./src
+RUN npm run build
+
+FROM node:20-alpine AS production
+ENV NODE_ENV=production
+WORKDIR /app/backend
+RUN apk add --no-cache docker-cli
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/backend/dist ./dist
+EXPOSE 8081
+CMD ["npm", "run", "start:executor"]

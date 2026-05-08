@@ -8,3 +8,4 @@ backend/prisma/*.db
 backend/prisma/*.db-*
 coverage
 .DS_Store
+electron/dist

@@ -1,19 +1,17 @@
 import type { ExecutionTrace, SupportedLanguage } from "../types/execution";
+import { env } from "../config/env";
 import { executeInDocker } from "../executors/dockerExecutor";
 import { executeLocally } from "../executors/localExecutor";
+import { executeRemotely } from "./remoteExecutorService";
 import { executeJavaScript } from "./execution/javascriptTraceService";
 
-const executionProvider = (
-  process.env.EXECUTION_PROVIDER ?? "auto"
-).toLowerCase();
-
-export const executeCode = async (
+export const executeCodeDirect = async (
   code: string,
   language: SupportedLanguage,
 ): Promise<ExecutionTrace> => {
   const runLocal = () => executeLocally(code, language);
 
-  if (executionProvider === "local") {
+  if (env.executionProvider === "local") {
     return runLocal();
   }
 
@@ -31,10 +29,21 @@ export const executeCode = async (
 
     return execution;
   } catch (error) {
-    if (executionProvider === "docker") {
+    if (env.executionProvider === "docker") {
       throw error;
     }
 
     return runLocal();
   }
+};
+
+export const executeCode = async (
+  code: string,
+  language: SupportedLanguage,
+): Promise<ExecutionTrace> => {
+  if (env.executorMode === "remote") {
+    return executeRemotely(code, language);
+  }
+
+  return executeCodeDirect(code, language);
 };

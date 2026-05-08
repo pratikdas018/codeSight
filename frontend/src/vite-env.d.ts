@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
+  readonly VITE_SUPABASE_URL?: string;
+  readonly VITE_SUPABASE_ANON_KEY?: string;
 }
 
 interface ImportMeta {
@@ -30,19 +32,38 @@ interface LocalSnippetRecord {
 type MenuAction =
   | "file:new"
   | "file:open"
+  | "file:open-recent"
   | "file:save"
   | "file:save-local-snippet"
   | "file:load-local-snippet"
   | "run:execute";
+
+interface MenuActionEvent {
+  type: MenuAction;
+  filePath?: string;
+}
+
+interface RecentFileRecord {
+  filePath: string;
+  name: string;
+  lastOpenedAt: string;
+}
 
 interface Window {
   electronAPI?: {
     env: {
       isElectron: boolean;
       backendUrl: string;
+      supabaseUrl?: string;
+      supabaseAnonKey?: string;
       platform: string;
+      version: string;
     };
-    openFile: () => Promise<DesktopFilePayload>;
+    runCode: (payload: {
+      code: string;
+      language: SupportedLanguage;
+    }) => Promise<import("./engine/types").ExecutionTrace>;
+    openFile: (filePath?: string | null) => Promise<DesktopFilePayload>;
     saveFile: (payload: {
       filePath: string | null;
       content: string;
@@ -54,11 +75,12 @@ interface Window {
       code: string;
     }) => Promise<LocalSnippetRecord>;
     getLocalSnippets: () => Promise<LocalSnippetRecord[]>;
+    getRecentFiles: () => Promise<RecentFileRecord[]>;
     openLocalSnippet: () => Promise<{
       canceled: boolean;
       filePath?: string;
       snippet?: LocalSnippetRecord;
     }>;
-    onMenuAction: (callback: (action: MenuAction) => void) => () => void;
+    onMenuAction: (callback: (action: MenuActionEvent) => void) => () => void;
   };
 }

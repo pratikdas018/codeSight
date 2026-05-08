@@ -3,20 +3,24 @@
   "version": "1.0.0",
   "private": true,
   "description": "CodeSight full-stack MVP",
-  "main": "electron/main.js",
+  "main": "electron/dist/main.js",
   "workspaces": [
     "backend",
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"npm run electron:dev\"",
-    "build": "npm run build --prefix backend && npm run build --prefix frontend",
-    "electron:dev": "wait-on http-get://127.0.0.1:4000/health http-get://127.0.0.1:5173 && electronmon .",
-    "electron:start": "electron .",
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"npm run electron:watch\" \"npm run electron:dev\"",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend && npm run build:electron",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "electron:watch": "tsc -p electron/tsconfig.json --watch --preserveWatchOutput",
+    "electron:dev": "wait-on file:electron/dist/main.js http-get://127.0.0.1:4000/health http-get://127.0.0.1:5173 && electronmon electron/dist/main.js",
+    "electron:start": "npm run build:electron && electron .",
     "electron:build": "npm run build && electron-builder",
-    "docker:build": "docker build -f docker/Dockerfile.node -t codesight-node-runner . && docker build -f docker/Dockerfile.python -t codesight-python-runner . && docker build -f docker/Dockerfile.cpp -t codesight-cpp-runner . && docker build -f docker/Dockerfile.java -t codesight-java-runner .",
-    "prisma:generate": "npm run prisma:generate --prefix backend",
-    "prisma:migrate": "npm run prisma:migrate --prefix backend"
+    "docker:build": "npm run docker:build:runners && npm run docker:build:api && npm run docker:build:executor",
+    "docker:build:runners": "docker build -f docker/Dockerfile.node -t codesight-node-runner . && docker build -f docker/Dockerfile.python -t codesight-python-runner . && docker build -f docker/Dockerfile.cpp -t codesight-cpp-runner . && docker build -f docker/Dockerfile.java -t codesight-java-runner .",
+    "docker:build:api": "docker build -f docker/Dockerfile.api -t codesight-api .",
+    "docker:build:executor": "docker build -f docker/Dockerfile.executor -t codesight-executor .",
+    "docker:compose:prod": "docker compose -f docker-compose.production.yml up -d"
   },
   "keywords": [
     "codesight",
@@ -25,44 +29,60 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "concurrently": "^9.2.1",
     "electron": "^41.3.0",
     "electron-builder": "^26.8.1",
     "electronmon": "^2.0.4",
+    "typescript": "^6.0.3",
     "wait-on": "^9.0.5"
   },
   "build": {
     "appId": "com.codesight.desktop",
     "productName": "CodeSight",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "buildResources": "electron/assets"
     },
     "files": [
-      "electron/**/*",
+      "electron/dist/**/*",
+      "electron/splash.html",
+      "electron/assets/**/*",
       "frontend/dist/**/*",
       "backend/dist/**/*",
       "backend/package.json",
-      "backend/prisma/**/*",
-      "backend/scripts/**/*",
       "backend/node_modules/**/*"
     ],
-    "asarUnpack": [
-      "backend/node_modules/.prisma/**/*",
-      "backend/node_modules/@prisma/**/*",
-      "backend/node_modules/bcrypt/**/*"
-    ],
     "extraMetadata": {
-      "main": "electron/main.js"
+      "main": "electron/dist/main.js"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "prakitdas018",
+        "repo": "codeSight",
+        "releaseType": "release"
+      }
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
     },
     "win": {
       "target": [
         "nsis"
       ],
+      "signAndEditExecutable": false,
       "icon": "electron/assets/icon.ico"
+    },
+    "dmg": {
+      "sign": false
     },
     "mac": {
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "category": "public.app-category.developer-tools"
     },
