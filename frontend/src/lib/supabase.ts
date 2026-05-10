@@ -10,6 +10,9 @@ type BrowserWindowWithElectronEnv = Window & {
   };
 };
 
+export const SUPABASE_CONFIG_ERROR =
+  "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before starting CodeSight.";
+
 const resolveSupabaseConfig = () => {
   const electronEnv = (window as BrowserWindowWithElectronEnv).electronAPI?.env;
   const url = import.meta.env.VITE_SUPABASE_URL ?? electronEnv?.supabaseUrl ?? "";
@@ -17,20 +20,26 @@ const resolveSupabaseConfig = () => {
     import.meta.env.VITE_SUPABASE_ANON_KEY ?? electronEnv?.supabaseAnonKey ?? "";
 
   if (!url || !anonKey) {
-    throw new Error(
-      "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before starting CodeSight.",
-    );
+    return null;
   }
 
   return { url, anonKey };
 };
+
+export const hasSupabaseConfig = resolveSupabaseConfig() !== null;
 
 const globalForSupabase = globalThis as typeof globalThis & {
   __codesightSupabase?: SupabaseClient<Database>;
 };
 
 export const createSupabaseClient = () => {
-  const { url, anonKey } = resolveSupabaseConfig();
+  const config = resolveSupabaseConfig();
+
+  if (!config) {
+    throw new Error(SUPABASE_CONFIG_ERROR);
+  }
+
+  const { url, anonKey } = config;
 
   return createClient<Database>(url, anonKey, {
     auth: {
@@ -47,9 +56,18 @@ export const createSupabaseClient = () => {
 };
 
 export const supabase =
-  globalForSupabase.__codesightSupabase ??
-  createSupabaseClient();
+  hasSupabaseConfig
+    ? (globalForSupabase.__codesightSupabase ?? createSupabaseClient())
+    : null;
 
-if (!globalForSupabase.__codesightSupabase) {
+export const requireSupabase = () => {
+  if (!supabase) {
+    throw new Error(SUPABASE_CONFIG_ERROR);
+  }
+
+  return supabase;
+};
+
+if (supabase && !globalForSupabase.__codesightSupabase) {
   globalForSupabase.__codesightSupabase = supabase;
 }

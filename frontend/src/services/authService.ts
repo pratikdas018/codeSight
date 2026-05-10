@@ -1,5 +1,5 @@
 import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import { requireSupabase } from "../lib/supabase";
 import type { User } from "../utils/types";
 
 export type AuthActionResult =
@@ -27,7 +27,7 @@ const mapUser = (
 });
 
 export const fetchProfile = async (authUser: SupabaseAuthUser) => {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("profiles")
     .select("id, email, created_at")
     .eq("id", authUser.id)
@@ -49,7 +49,7 @@ export const hydrateSessionUser = async (session: Session | null) => {
 };
 
 export const signUpWithEmail = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await requireSupabase().auth.signUp({
     email,
     password,
   });
@@ -77,7 +77,7 @@ export const signUpWithEmail = async (email: string, password: string) => {
 };
 
 export const signInWithEmail = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await requireSupabase().auth.signInWithPassword({
     email,
     password,
   });
@@ -104,7 +104,7 @@ export const signInWithEmail = async (email: string, password: string) => {
 };
 
 export const resendSignupConfirmation = async (email: string) => {
-  const { error } = await supabase.auth.resend({
+  const { error } = await requireSupabase().auth.resend({
     type: "signup",
     email,
   });
@@ -115,7 +115,7 @@ export const resendSignupConfirmation = async (email: string) => {
 };
 
 export const signOutSession = async () => {
-  const { error } = await supabase.auth.signOut();
+  const { error } = await requireSupabase().auth.signOut();
 
   if (error) {
     throw new Error(error.message);

@@ -5,8 +5,11 @@ import type {
   OpenDialogOptions,
   SaveDialogOptions,
 } from "electron";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 type SupportedLanguage = "javascript" | "python" | "c" | "cpp" | "java";
 
@@ -54,6 +57,8 @@ const devRendererUrl =
   process.env.ELECTRON_RENDERER_URL ?? "http://127.0.0.1:5173";
 const devBackendUrl =
   process.env.CODESIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
+const shouldAutoOpenDevTools =
+  isDev || process.env.CODESIGHT_OPEN_DEVTOOLS === "true";
 const productionBackendPort = Number(
   process.env.CODESIGHT_DESKTOP_BACKEND_PORT ?? 4010,
 );
@@ -86,18 +91,104 @@ let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let backendServer: { close: (callback: () => void) => void } | null = null;
 
+const getDesktopLogFilePath = () => {
+  const baseDirectory = app.isReady()
+    ? path.join(app.getPath("userData"), "logs")
+    : path.join(os.tmpdir(), "CodeSight");
+
+  mkdirSync(baseDirectory, { recursive: true });
+  return path.join(baseDirectory, "desktop-startup.log");
+};
+
+const serializeError = (error: unknown) => {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}\n${error.stack ?? ""}`.trim();
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
+const logDesktopMessage = (message: string, error?: unknown) => {
+  const lines = [
+    `[${new Date().toISOString()}] ${message}`,
+    error ? serializeError(error) : "",
+  ].filter(Boolean);
+
+  try {
+    appendFileSync(getDesktopLogFilePath(), `${lines.join("\n")}\n`, "utf8");
+  } catch {
+    return;
+  }
+};
+
+const getCompiledAppRoot = () => path.resolve(__dirname, "..", "..");
 const getIconPath = () => path.join(__dirname, "..", "assets", "icon.png");
 const getSplashPath = () => path.join(__dirname, "..", "splash.html");
+const getPreloadPath = () => path.join(__dirname, "preload.js");
 const getFrontendEntry = () =>
-  path.join(app.getAppPath(), "frontend", "dist", "index.html");
+  path.join(getCompiledAppRoot(), "frontend", "dist", "index.html");
 const getBackendAppPath = (...segments: string[]) =>
-  path.join(app.getAppPath(), "backend", ...segments);
+  path.join(getCompiledAppRoot(), "backend", ...segments);
 const getSnippetDirectory = () =>
   path.join(app.getPath("userData"), snippetDirectoryName);
 const getRecentFilesStorePath = () =>
   path.join(app.getPath("userData"), recentFilesStoreName);
 const getBackendUrl = () =>
   isDev ? devBackendUrl : `http://127.0.0.1:${productionBackendPort}`;
+const getSessionDataPath = () =>
+  path.join(
+    process.env.LOCALAPPDATA ?? os.tmpdir(),
+    "CodeSight",
+    "SessionData",
+  );
+
+mkdirSync(getSessionDataPath(), { recursive: true });
+app.setPath("sessionData", getSessionDataPath());
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
+
+const validateProductionBundle = () => {
+  if (isDev) {
+    return;
+  }
+
+  const requiredFiles = [
+    { label: "frontend entry", filePath: getFrontendEntry() },
+    { label: "preload script", filePath: getPreloadPath() },
+    { label: "embedded backend", filePath: getBackendAppPath("dist", "app.js") },
+    { label: "window icon", filePath: getIconPath() },
+    { label: "splash screen", filePath: getSplashPath() },
+  ];
+
+  logDesktopMessage(
+    `Validating packaged paths with __dirname=${__dirname}, appPath=${app.getAppPath()}, resourcesPath=${process.resourcesPath}.`,
+  );
+
+  for (const requiredFile of requiredFiles) {
+    const exists = existsSync(requiredFile.filePath);
+    logDesktopMessage(
+      `Checked ${requiredFile.label}: ${requiredFile.filePath} (${exists ? "found" : "missing"}).`,
+    );
+
+    if (!exists) {
+      throw new Error(
+        `Missing packaged ${requiredFile.label} at ${requiredFile.filePath}.`,
+      );
+    }
+  }
+};
 
 const buildDesktopEnvironment = () => {
   return {
@@ -254,31 +345,42 @@ const startEmbeddedBackend = async () => {
   Object.assign(process.env, buildDesktopEnvironment());
   delete process.env.FRONTEND_URL;
 
-  const backendAppModule = require(getBackendAppPath("dist", "app.js")) as {
-    default?: {
-      listen: (
-        port: number,
-        host: string,
-        callback: () => void,
-      ) => { close: (callback: () => void) => void; on: (event: string, cb: (error: Error) => void) => void };
+  try {
+    logDesktopMessage("Starting embedded backend.");
+
+    const backendAppModule = require(getBackendAppPath("dist", "app.js")) as {
+      default?: {
+        listen: (
+          port: number,
+          host: string,
+          callback: () => void,
+        ) => { close: (callback: () => void) => void; on: (event: string, cb: (error: Error) => void) => void };
+      };
     };
-  };
-  const backendApp = backendAppModule.default;
+    const backendApp = backendAppModule.default;
 
-  if (!backendApp) {
-    throw new Error("Unable to bootstrap the embedded backend.");
-  }
+    if (!backendApp) {
+      throw new Error("Unable to bootstrap the embedded backend.");
+    }
 
-  await new Promise<void>((resolve, reject) => {
-    const server = backendApp.listen(
-      productionBackendPort,
-      "127.0.0.1",
-      resolve,
+    await new Promise<void>((resolve, reject) => {
+      const server = backendApp.listen(
+        productionBackendPort,
+        "127.0.0.1",
+        resolve,
+      );
+
+      server.on("error", reject);
+      backendServer = server;
+    });
+
+    logDesktopMessage(
+      `Embedded backend is listening on http://127.0.0.1:${productionBackendPort}.`,
     );
-
-    server.on("error", reject);
-    backendServer = server;
-  });
+  } catch (error) {
+    logDesktopMessage("Embedded backend failed to start.", error);
+    throw error;
+  }
 };
 
 const stopEmbeddedBackend = async () => {
@@ -296,13 +398,17 @@ const createSplashWindow = () => {
     height: 280,
     frame: false,
     transparent: true,
-    resizable: false,
+    resizable: true,
+    maximizable: true,
+    minimizable: true,
     show: false,
     alwaysOnTop: true,
     icon: getIconPath(),
     webPreferences: {
+      preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
   });
 
@@ -314,6 +420,7 @@ const createSplashWindow = () => {
 
 const createMainWindow = async () => {
   process.env.CODESIGHT_BACKEND_URL = getBackendUrl();
+  const frontendEntry = getFrontendEntry();
 
   mainWindow = new BrowserWindow({
     width: 1540,
@@ -326,21 +433,65 @@ const createMainWindow = async () => {
     icon: getIconPath(),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      devTools: isDev,
+      devTools: true,
       spellcheck: false,
     },
   });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.on("did-start-loading", () => {
+    logDesktopMessage("Renderer started loading.");
+  });
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    logDesktopMessage(
+      `Renderer finished loading ${mainWindow?.webContents.getURL() ?? frontendEntry}.`,
+    );
+  });
+
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL) => {
+      logDesktopMessage(
+        `Renderer failed to load ${validatedURL} (${errorCode}: ${errorDescription}).`,
+      );
+    },
+  );
+
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    logDesktopMessage(
+      `Renderer process exited (${details.reason}, exitCode=${details.exitCode}).`,
+    );
+  });
+
+  mainWindow.webContents.on("unresponsive", () => {
+    logDesktopMessage("Renderer became unresponsive.");
+  });
+
+  mainWindow.webContents.on("preload-error", (_event, preloadPath, error) => {
+    logDesktopMessage(`Preload script failed: ${preloadPath}.`, error);
+  });
+
+  mainWindow.webContents.on(
+    "console-message",
+    (_event, level, message, line, sourceId) => {
+      if (!isDev || shouldAutoOpenDevTools || level >= 2) {
+        logDesktopMessage(
+          `Renderer console [${level}] ${sourceId}:${line} ${message}`,
+        );
+      }
+    },
+  );
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
     void shell.openExternal(url);
     return { action: "deny" };
   });
 
-  mainWindow.webContents.on("will-navigate", (event, url) => {
+  mainWindow.webContents.on("will-navigate", (event: Electron.Event, url: string) => {
     const allowedPrefix = isDev ? devRendererUrl : "file://";
 
     if (!url.startsWith(allowedPrefix)) {
@@ -352,13 +503,14 @@ const createMainWindow = async () => {
   if (isDev) {
     await mainWindow.loadURL(devRendererUrl);
   } else {
-    await mainWindow.loadFile(getFrontendEntry());
+    logDesktopMessage(`Loading packaged frontend from ${frontendEntry}.`);
+    await mainWindow.loadURL(pathToFileURL(frontendEntry).toString());
   }
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
 
-    if (isDev) {
+    if (shouldAutoOpenDevTools) {
       mainWindow?.webContents.openDevTools({ mode: "detach" });
     }
 
@@ -371,6 +523,21 @@ const createMainWindow = async () => {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+};
+
+const focusExistingWindow = () => {
+  const targetWindow = mainWindow ?? splashWindow;
+
+  if (!targetWindow || targetWindow.isDestroyed()) {
+    return;
+  }
+
+  if (targetWindow.isMinimized()) {
+    targetWindow.restore();
+  }
+
+  targetWindow.show();
+  targetWindow.focus();
 };
 
 const buildMenu = async () => {
@@ -658,18 +825,65 @@ ipcMain.handle("desktop:open-local-snippet", async () => {
 
 ipcMain.handle("desktop:get-recent-files", async () => readRecentFiles());
 
-app.whenReady().then(async () => {
-  app.setAppUserModelId("com.codesight.desktop");
-  await startEmbeddedBackend();
-  await buildMenu();
-  createSplashWindow();
-  await createMainWindow();
+const getSenderWindow = (event: Electron.IpcMainInvokeEvent) =>
+  BrowserWindow.fromWebContents(event.sender);
 
-  app.on("activate", async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createMainWindow();
-    }
-  });
+ipcMain.handle("window:minimize", async (event) => {
+  getSenderWindow(event)?.minimize();
+});
+
+ipcMain.handle("window:toggle-maximize", async (event) => {
+  const senderWindow = getSenderWindow(event);
+
+  if (!senderWindow) {
+    return false;
+  }
+
+  if (senderWindow.isMaximized()) {
+    senderWindow.unmaximize();
+    return false;
+  }
+
+  senderWindow.maximize();
+  return true;
+});
+
+ipcMain.handle("window:is-maximized", async (event) =>
+  getSenderWindow(event)?.isMaximized() ?? false,
+);
+
+ipcMain.handle("window:close", async (event) => {
+  getSenderWindow(event)?.close();
+});
+
+app.on("second-instance", () => {
+  logDesktopMessage("Second instance requested. Focusing the existing window.");
+  focusExistingWindow();
+});
+
+app.whenReady().then(async () => {
+  try {
+    logDesktopMessage("CodeSight desktop startup initiated.");
+    app.setAppUserModelId("com.codesight.desktop");
+    validateProductionBundle();
+    await startEmbeddedBackend();
+    await buildMenu();
+    createSplashWindow();
+    await createMainWindow();
+    logDesktopMessage("Main window created successfully.");
+
+    app.on("activate", async () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        await createMainWindow();
+        return;
+      }
+
+      focusExistingWindow();
+    });
+  } catch (error) {
+    logDesktopMessage("Desktop startup failed.", error);
+    throw error;
+  }
 });
 
 app.on("window-all-closed", () => {
@@ -680,4 +894,12 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", async () => {
   await stopEmbeddedBackend();
+});
+
+process.on("uncaughtException", (error) => {
+  logDesktopMessage("Uncaught exception in Electron main process.", error);
+});
+
+process.on("unhandledRejection", (reason) => {
+  logDesktopMessage("Unhandled promise rejection in Electron main process.", reason);
 });

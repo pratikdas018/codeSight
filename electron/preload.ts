@@ -41,6 +41,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getLocalSnippets: () => ipcRenderer.invoke("desktop:get-local-snippets"),
   openLocalSnippet: () => ipcRenderer.invoke("desktop:open-local-snippet"),
   getRecentFiles: () => ipcRenderer.invoke("desktop:get-recent-files"),
+  minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
+  toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
+  closeWindow: () => ipcRenderer.invoke("window:close"),
+  isWindowMaximized: () => ipcRenderer.invoke("window:is-maximized"),
   onMenuAction: (callback: (action: MenuActionEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, action: MenuActionEvent) => {
       callback(action);

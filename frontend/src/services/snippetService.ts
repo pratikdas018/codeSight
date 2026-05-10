@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase";
+import { requireSupabase } from "../lib/supabase";
 import type { CodeSnippet, SupportedLanguage } from "../utils/types";
 
 const mapSnippet = (snippet: {
@@ -18,7 +18,7 @@ const mapSnippet = (snippet: {
 });
 
 export const listSnippets = async () => {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("snippets")
     .select("id, user_id, title, language, code, created_at")
     .order("created_at", { ascending: false });
@@ -31,7 +31,7 @@ export const listSnippets = async () => {
 };
 
 export const getSnippetById = async (snippetId: string) => {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("snippets")
     .select("id, user_id, title, language, code, created_at")
     .eq("id", snippetId)
@@ -50,7 +50,7 @@ export const createSnippet = async (payload: {
   language: SupportedLanguage;
   code: string;
 }) => {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("snippets")
     .insert({
       user_id: payload.userId,
@@ -77,7 +77,7 @@ export const updateSnippet = async (
     code: string;
   },
 ) => {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("snippets")
     .update({
       title: payload.title,
@@ -97,7 +97,7 @@ export const updateSnippet = async (
 };
 
 export const deleteSnippet = async (snippetId: string, userId: string) => {
-  const { error } = await supabase
+  const { error } = await requireSupabase()
     .from("snippets")
     .delete()
     .eq("id", snippetId)

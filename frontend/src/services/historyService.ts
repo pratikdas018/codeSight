@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase";
+import { requireSupabase } from "../lib/supabase";
 import type { ExecutionHistoryRecord } from "../utils/types";
 
 const mapHistoryRecord = (entry: {
@@ -37,7 +37,7 @@ const mapHistoryRecord = (entry: {
 });
 
 export const listExecutionHistory = async () => {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("execution_history")
     .select(
       "id, user_id, snippet_id, output, execution_time, created_at, snippet:snippets!execution_history_snippet_id_fkey(id, title, language, code)",
@@ -57,7 +57,7 @@ export const createExecutionHistory = async (payload: {
   output?: string;
   executionTime: number;
 }) => {
-  const { data: snippet, error: snippetError } = await supabase
+  const { data: snippet, error: snippetError } = await requireSupabase()
     .from("snippets")
     .select("id, user_id")
     .eq("id", payload.snippetId)
@@ -68,7 +68,7 @@ export const createExecutionHistory = async (payload: {
     throw new Error("Code snippet not found for this account.");
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from("execution_history")
     .insert({
       user_id: payload.userId,

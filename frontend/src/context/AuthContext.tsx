@@ -7,7 +7,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import { hasSupabaseConfig, requireSupabase } from "../lib/supabase";
 import {
   hydrateSessionUser,
   resendSignupConfirmation,
@@ -47,6 +47,18 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     let isMounted = true;
+
+    if (!hasSupabaseConfig) {
+      setIsLoading(false);
+      setUser(null);
+      setSession(null);
+
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const supabase = requireSupabase();
 
     const syncSession = async (nextSession: Session | null) => {
       if (!isMounted) {

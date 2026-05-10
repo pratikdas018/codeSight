@@ -37,6 +37,16 @@
     "typescript": "^6.0.3",
     "wait-on": "^9.0.5"
   },
+  "dependencies": {
+    "acorn": "^8.16.0",
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.1",
+    "helmet": "^8.1.0",
+    "pino-http": "^11.0.0"
+  },
   "build": {
     "appId": "com.codesight.desktop",
     "productName": "CodeSight",
@@ -50,8 +60,7 @@
       "electron/assets/**/*",
       "frontend/dist/**/*",
       "backend/dist/**/*",
-      "backend/package.json",
-      "backend/node_modules/**/*"
+      "backend/package.json"
     ],
     "extraMetadata": {
       "main": "electron/dist/main.js"
