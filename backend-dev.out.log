@@ -1,0 +1,5 @@
+
+> codesight-backend@1.0.0 dev
+> tsx watch src/index.ts
+
+◇ injected env (5) from .env // tip: ◈ encrypted .env [www.dotenvx.com]

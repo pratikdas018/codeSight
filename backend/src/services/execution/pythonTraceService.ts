@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { ExecutionTimeline } from "../../types/execution";
+import { removeDirectory } from "../../utils/removeDirectory";
 
 const execFileAsync = promisify(execFile);
 const executionTimeoutMs = 8000;
@@ -225,6 +226,6 @@ export const executePython = async (code: string): Promise<ExecutionTimeline> =>
         : "Python runtime was not found.",
     );
   } finally {
-    await fs.rm(tempDirectory, { recursive: true, force: true });
+    await removeDirectory(tempDirectory);
   }
 };

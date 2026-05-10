@@ -13,7 +13,7 @@
     "build": "npm run build --prefix backend && npm run build --prefix frontend && npm run build:electron",
     "build:electron": "tsc -p electron/tsconfig.json",
     "electron:watch": "tsc -p electron/tsconfig.json --watch --preserveWatchOutput",
-    "electron:dev": "wait-on file:electron/dist/main.js http-get://127.0.0.1:4000/health http-get://127.0.0.1:5173 && electronmon electron/dist/main.js",
+    "electron:dev": "npm run build:electron && wait-on file:electron/dist/main.js file:electron/dist/preload.js http-get://127.0.0.1:4000/health http-get://127.0.0.1:5180 && electron electron/dist/main.js",
     "electron:start": "npm run build:electron && electron .",
     "electron:build": "npm run build && electron-builder",
     "docker:build": "npm run docker:build:runners && npm run docker:build:api && npm run docker:build:executor",
@@ -102,5 +102,13 @@
       "category": "Development",
       "icon": "electron/assets/icon.png"
     }
+  },
+  "electronmon": {
+    "patterns": [
+      "!dist/**",
+      "!dist/**/*",
+      "!frontend-dev*.log",
+      "!backend-dev*.log"
+    ]
   }
 }

@@ -54,7 +54,7 @@ interface LocalSnippetRecord {
 
 const isDev = !app.isPackaged;
 const devRendererUrl =
-  process.env.ELECTRON_RENDERER_URL ?? "http://127.0.0.1:5173";
+  process.env.ELECTRON_RENDERER_URL ?? "http://127.0.0.1:5180";
 const devBackendUrl =
   process.env.CODESIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
 const shouldAutoOpenDevTools =
@@ -90,6 +90,7 @@ const codeFilters = [
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let backendServer: { close: (callback: () => void) => void } | null = null;
+let hasRevealedMainWindow = false;
 
 const getDesktopLogFilePath = () => {
   const baseDirectory = app.isReady()
@@ -128,6 +129,11 @@ const logDesktopMessage = (message: string, error?: unknown) => {
     return;
   }
 };
+
+const sleep = (durationMs: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
 
 const getCompiledAppRoot = () => path.resolve(__dirname, "..", "..");
 const getIconPath = () => path.join(__dirname, "..", "assets", "icon.png");
@@ -418,9 +424,43 @@ const createSplashWindow = () => {
   });
 };
 
+const loadRendererWithRetry = async (
+  targetWindow: BrowserWindow,
+  targetUrl: string,
+) => {
+  const maxAttempts = isDev ? 5 : 1;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      if (attempt > 1) {
+        logDesktopMessage(
+          `Retrying renderer load (${attempt}/${maxAttempts}) for ${targetUrl}.`,
+        );
+      }
+
+      await targetWindow.loadURL(targetUrl);
+      return;
+    } catch (error) {
+      lastError = error;
+      logDesktopMessage(
+        `Renderer load attempt ${attempt} failed for ${targetUrl}.`,
+        error,
+      );
+
+      if (attempt < maxAttempts) {
+        await sleep(700);
+      }
+    }
+  }
+
+  throw lastError;
+};
+
 const createMainWindow = async () => {
   process.env.CODESIGHT_BACKEND_URL = getBackendUrl();
   const frontendEntry = getFrontendEntry();
+  hasRevealedMainWindow = false;
 
   mainWindow = new BrowserWindow({
     width: 1540,
@@ -450,6 +490,15 @@ const createMainWindow = async () => {
     logDesktopMessage(
       `Renderer finished loading ${mainWindow?.webContents.getURL() ?? frontendEntry}.`,
     );
+
+    // `ready-to-show` can be flaky with dev-server loads and heavy renderer startup.
+    // Reveal the main window once the document has finished loading as a fallback.
+    setTimeout(() => {
+      if (!hasRevealedMainWindow) {
+        logDesktopMessage("Revealing main window using did-finish-load fallback.");
+        revealMainWindow();
+      }
+    }, 150);
   });
 
   mainWindow.webContents.on(
@@ -475,16 +524,20 @@ const createMainWindow = async () => {
     logDesktopMessage(`Preload script failed: ${preloadPath}.`, error);
   });
 
-  mainWindow.webContents.on(
-    "console-message",
-    (_event, level, message, line, sourceId) => {
-      if (!isDev || shouldAutoOpenDevTools || level >= 2) {
-        logDesktopMessage(
-          `Renderer console [${level}] ${sourceId}:${line} ${message}`,
-        );
-      }
-    },
-  );
+  mainWindow.webContents.on("console-message", (details) => {
+    const { level, message, lineNumber, sourceId } = details;
+    const shouldLogRendererMessage =
+      !isDev ||
+      shouldAutoOpenDevTools ||
+      level === "warning" ||
+      level === "error";
+
+    if (shouldLogRendererMessage) {
+      logDesktopMessage(
+        `Renderer console [${level}] ${sourceId}:${lineNumber} ${message}`,
+      );
+    }
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
     void shell.openExternal(url);
@@ -501,28 +554,42 @@ const createMainWindow = async () => {
   });
 
   if (isDev) {
-    await mainWindow.loadURL(devRendererUrl);
+    await loadRendererWithRetry(mainWindow, devRendererUrl);
   } else {
     logDesktopMessage(`Loading packaged frontend from ${frontendEntry}.`);
-    await mainWindow.loadURL(pathToFileURL(frontendEntry).toString());
+    await loadRendererWithRetry(
+      mainWindow,
+      pathToFileURL(frontendEntry).toString(),
+    );
   }
 
   mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
-
-    if (shouldAutoOpenDevTools) {
-      mainWindow?.webContents.openDevTools({ mode: "detach" });
-    }
-
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      splashWindow.close();
-      splashWindow = null;
-    }
+    logDesktopMessage("Revealing main window using ready-to-show.");
+    revealMainWindow();
   });
 
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+};
+
+const revealMainWindow = () => {
+  if (!mainWindow || mainWindow.isDestroyed() || hasRevealedMainWindow) {
+    return;
+  }
+
+  hasRevealedMainWindow = true;
+  mainWindow.show();
+  mainWindow.focus();
+
+  if (shouldAutoOpenDevTools) {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+  }
+
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+    splashWindow = null;
+  }
 };
 
 const focusExistingWindow = () => {

@@ -1,16 +1,19 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+const rendererPort = Number(process.env.CODESIGHT_RENDERER_PORT ?? 5180);
+
 export default defineConfig({
   plugins: [react()],
   base: "./",
   server: {
+    strictPort: true,
     host: "127.0.0.1",
-    port: 5173,
+    port: rendererPort,
   },
   preview: {
     host: "127.0.0.1",
-    port: 4173,
+    port: rendererPort + 100,
   },
   build: {
     outDir: "dist",

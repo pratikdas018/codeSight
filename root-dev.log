@@ -1,0 +1,8 @@
+
+> codesight@1.0.0 dev
+> concurrently "npm run dev --prefix backend" "npm run dev --prefix frontend" "npm run electron:watch" "npm run electron:dev"
+
+[2] npm run electron:watch exited with code 3221225786
+[0] npm run dev --prefix backend exited with code 3221225786
+[1] npm run dev --prefix frontend exited with code 3221225786
+[3] npm run electron:dev exited with code 3221225786

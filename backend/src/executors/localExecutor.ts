@@ -13,6 +13,7 @@ import {
 import { createCompiledLanguageWalkthrough } from "../services/execution/compiledTraceService";
 import { executeJavaScript } from "../services/execution/javascriptTraceService";
 import { executePython } from "../services/execution/pythonTraceService";
+import { removeDirectory } from "../utils/removeDirectory";
 
 const execFileAsync = promisify(execFile);
 const executionTimeoutMs = Number(process.env.EXECUTION_TIMEOUT_MS ?? 5000);
@@ -237,7 +238,7 @@ const executeJavaScriptLocally = async (code: string): Promise<ExecutionTrace> =
       Math.round(performance.now() - startedAt),
     );
   } finally {
-    await fs.rm(workspaceDir, { recursive: true, force: true });
+    await removeDirectory(workspaceDir);
   }
 };
 
@@ -308,7 +309,7 @@ const compileAndRunLocally = async (
       Math.round(performance.now() - startedAt),
     );
   } finally {
-    await fs.rm(workspaceDir, { recursive: true, force: true });
+    await removeDirectory(workspaceDir);
   }
 };
 
@@ -343,7 +344,7 @@ const executeJavaLocally = async (code: string): Promise<ExecutionTrace> => {
       Math.round(performance.now() - startedAt),
     );
   } finally {
-    await fs.rm(workspaceDir, { recursive: true, force: true });
+    await removeDirectory(workspaceDir);
   }
 };
 

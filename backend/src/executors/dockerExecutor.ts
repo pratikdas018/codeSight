@@ -12,6 +12,7 @@ import {
 } from "../types/execution";
 import { createCompiledLanguageWalkthrough } from "../services/execution/compiledTraceService";
 import { languageExecutionConfigs } from "./languageConfigs";
+import { removeDirectory } from "../utils/removeDirectory";
 
 const execFileAsync = promisify(execFile);
 const dockerBinary = process.env.DOCKER_BIN ?? "docker";
@@ -280,6 +281,6 @@ export const executeInDocker = async (
     throw new Error(message);
   } finally {
     await cleanupContainer(containerName);
-    await fs.rm(workspaceDir, { recursive: true, force: true });
+    await removeDirectory(workspaceDir);
   }
 };
