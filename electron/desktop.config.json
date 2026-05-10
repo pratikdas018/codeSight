@@ -1,0 +1,4 @@
+{
+  "productionApiBaseUrl": "https://api.codesight.app",
+  "preferHostedApiInProduction": true
+}

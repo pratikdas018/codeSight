@@ -5,7 +5,7 @@ import type {
   OpenDialogOptions,
   SaveDialogOptions,
 } from "electron";
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -50,6 +50,11 @@ interface LocalSnippetRecord {
   createdAt: string;
   filePath: string;
   source: "local";
+}
+
+interface DesktopReleaseConfig {
+  productionApiBaseUrl?: string;
+  preferHostedApiInProduction?: boolean;
 }
 
 const isDev = !app.isPackaged;
@@ -136,6 +141,8 @@ const sleep = (durationMs: number) =>
   });
 
 const getCompiledAppRoot = () => path.resolve(__dirname, "..", "..");
+const getDesktopConfigPath = () =>
+  path.join(__dirname, "..", "desktop.config.json");
 const getIconPath = () => path.join(__dirname, "..", "assets", "icon.png");
 const getSplashPath = () => path.join(__dirname, "..", "splash.html");
 const getPreloadPath = () => path.join(__dirname, "preload.js");
@@ -148,7 +155,11 @@ const getSnippetDirectory = () =>
 const getRecentFilesStorePath = () =>
   path.join(app.getPath("userData"), recentFilesStoreName);
 const getBackendUrl = () =>
-  isDev ? devBackendUrl : `http://127.0.0.1:${productionBackendPort}`;
+  isDev
+    ? devBackendUrl
+    : shouldUseHostedApiInProduction
+      ? productionApiBaseUrl
+      : `http://127.0.0.1:${productionBackendPort}`;
 const getSessionDataPath = () =>
   path.join(
     process.env.LOCALAPPDATA ?? os.tmpdir(),
@@ -165,6 +176,38 @@ if (!hasSingleInstanceLock) {
   app.quit();
 }
 
+const readDesktopReleaseConfig = (): DesktopReleaseConfig => {
+  try {
+    const configPath = getDesktopConfigPath();
+
+    if (!existsSync(configPath)) {
+      return {};
+    }
+
+    const rawConfig = readFileSync(configPath, "utf8");
+    const parsedConfig = JSON.parse(rawConfig) as DesktopReleaseConfig;
+
+    return {
+      productionApiBaseUrl: parsedConfig.productionApiBaseUrl?.trim(),
+      preferHostedApiInProduction:
+        parsedConfig.preferHostedApiInProduction !== false,
+    };
+  } catch (error) {
+    logDesktopMessage("Unable to read desktop release config.", error);
+    return {};
+  }
+};
+
+const desktopReleaseConfig = readDesktopReleaseConfig();
+const productionApiBaseUrl =
+  process.env.CODESIGHT_DESKTOP_API_URL?.trim() ||
+  desktopReleaseConfig.productionApiBaseUrl?.trim() ||
+  "";
+const shouldUseHostedApiInProduction =
+  !isDev &&
+  desktopReleaseConfig.preferHostedApiInProduction !== false &&
+  Boolean(productionApiBaseUrl);
+
 const validateProductionBundle = () => {
   if (isDev) {
     return;
@@ -173,10 +216,16 @@ const validateProductionBundle = () => {
   const requiredFiles = [
     { label: "frontend entry", filePath: getFrontendEntry() },
     { label: "preload script", filePath: getPreloadPath() },
-    { label: "embedded backend", filePath: getBackendAppPath("dist", "app.js") },
     { label: "window icon", filePath: getIconPath() },
     { label: "splash screen", filePath: getSplashPath() },
   ];
+
+  if (!shouldUseHostedApiInProduction) {
+    requiredFiles.splice(2, 0, {
+      label: "embedded backend",
+      filePath: getBackendAppPath("dist", "app.js"),
+    });
+  }
 
   logDesktopMessage(
     `Validating packaged paths with __dirname=${__dirname}, appPath=${app.getAppPath()}, resourcesPath=${process.resourcesPath}.`,
@@ -201,9 +250,17 @@ const buildDesktopEnvironment = () => {
     ...process.env,
     NODE_ENV: "production",
     PORT: String(productionBackendPort),
-    EXECUTOR_MODE: "local",
+    EXECUTOR_MODE:
+      process.env.CODESIGHT_DESKTOP_EXECUTOR_MODE ??
+      (shouldUseHostedApiInProduction ? "remote" : "local"),
     EXECUTION_PROVIDER: process.env.EXECUTION_PROVIDER ?? "auto",
     CODESIGHT_BACKEND_URL: `http://127.0.0.1:${productionBackendPort}`,
+    REMOTE_EXECUTOR_URL:
+      process.env.REMOTE_EXECUTOR_URL ??
+      process.env.CODESIGHT_DESKTOP_REMOTE_EXECUTOR_URL,
+    EXECUTOR_SHARED_SECRET:
+      process.env.EXECUTOR_SHARED_SECRET ??
+      process.env.CODESIGHT_DESKTOP_EXECUTOR_SHARED_SECRET,
   };
 };
 
@@ -344,7 +401,12 @@ const showAboutDialog = async () => {
 };
 
 const startEmbeddedBackend = async () => {
-  if (isDev || backendServer) {
+  if (isDev || backendServer || shouldUseHostedApiInProduction) {
+    if (shouldUseHostedApiInProduction) {
+      logDesktopMessage(
+        `Skipping embedded backend. Using hosted desktop API at ${productionApiBaseUrl}.`,
+      );
+    }
     return;
   }
 

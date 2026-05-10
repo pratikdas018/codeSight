@@ -56,6 +56,7 @@
     },
     "files": [
       "electron/dist/**/*",
+      "electron/desktop.config.json",
       "electron/splash.html",
       "electron/assets/**/*",
       "frontend/dist/**/*",
