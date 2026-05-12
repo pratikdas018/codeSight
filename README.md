@@ -34,6 +34,7 @@ npm run electron:dev
 npm run electron:start
 ```
 
+
 - `npm run electron:dev` expects the frontend and backend dev servers to already be running.
 - `npm run electron:start` builds the frontend, backend, and Electron shell, then launches a self-contained desktop app with the embedded backend.
 
