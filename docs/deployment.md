@@ -183,9 +183,16 @@ Electron Builder is configured in [package.json](/c:/Users/lenovo/OneDrive/Deskt
 Build commands:
 
 ```bash
+npm run electron:start
 npm run build
 npm run electron:build
 ```
+
+Notes:
+
+- `npm run electron:start` is the local self-contained smoke test. It uses the built frontend and the embedded backend, so it should still open even when the separate dev API is not running.
+- `npm run electron:dev` is only for development with the Vite and backend dev servers already running.
+- Desktop releases currently prefer the embedded backend by default via [electron/desktop.config.json](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/electron/desktop.config.json). If you want a packaged app to call a hosted API instead, set `preferHostedApiInProduction` back to `true`.
 
 For release automation:
 

@@ -57,13 +57,14 @@ interface DesktopReleaseConfig {
   preferHostedApiInProduction?: boolean;
 }
 
-const isDev = !app.isPackaged;
+const shouldUseDevServer =
+  !app.isPackaged && Boolean(process.env.ELECTRON_RENDERER_URL?.trim());
 const devRendererUrl =
   process.env.ELECTRON_RENDERER_URL ?? "http://127.0.0.1:5180";
 const devBackendUrl =
   process.env.CODESIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
 const shouldAutoOpenDevTools =
-  isDev || process.env.CODESIGHT_OPEN_DEVTOOLS === "true";
+  shouldUseDevServer || process.env.CODESIGHT_OPEN_DEVTOOLS === "true";
 const productionBackendPort = Number(
   process.env.CODESIGHT_DESKTOP_BACKEND_PORT ?? 4010,
 );
@@ -155,7 +156,7 @@ const getSnippetDirectory = () =>
 const getRecentFilesStorePath = () =>
   path.join(app.getPath("userData"), recentFilesStoreName);
 const getBackendUrl = () =>
-  isDev
+  shouldUseDevServer
     ? devBackendUrl
     : shouldUseHostedApiInProduction
       ? productionApiBaseUrl
@@ -204,12 +205,12 @@ const productionApiBaseUrl =
   desktopReleaseConfig.productionApiBaseUrl?.trim() ||
   "";
 const shouldUseHostedApiInProduction =
-  !isDev &&
+  !shouldUseDevServer &&
   desktopReleaseConfig.preferHostedApiInProduction !== false &&
   Boolean(productionApiBaseUrl);
 
-const validateProductionBundle = () => {
-  if (isDev) {
+const validateDesktopBundle = () => {
+  if (shouldUseDevServer) {
     return;
   }
 
@@ -228,7 +229,7 @@ const validateProductionBundle = () => {
   }
 
   logDesktopMessage(
-    `Validating packaged paths with __dirname=${__dirname}, appPath=${app.getAppPath()}, resourcesPath=${process.resourcesPath}.`,
+    `Validating desktop bundle with __dirname=${__dirname}, appPath=${app.getAppPath()}, resourcesPath=${process.resourcesPath}.`,
   );
 
   for (const requiredFile of requiredFiles) {
@@ -401,7 +402,7 @@ const showAboutDialog = async () => {
 };
 
 const startEmbeddedBackend = async () => {
-  if (isDev || backendServer || shouldUseHostedApiInProduction) {
+  if (shouldUseDevServer || backendServer || shouldUseHostedApiInProduction) {
     if (shouldUseHostedApiInProduction) {
       logDesktopMessage(
         `Skipping embedded backend. Using hosted desktop API at ${productionApiBaseUrl}.`,
@@ -490,7 +491,7 @@ const loadRendererWithRetry = async (
   targetWindow: BrowserWindow,
   targetUrl: string,
 ) => {
-  const maxAttempts = isDev ? 5 : 1;
+  const maxAttempts = shouldUseDevServer ? 5 : 1;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -589,7 +590,7 @@ const createMainWindow = async () => {
   mainWindow.webContents.on("console-message", (details) => {
     const { level, message, lineNumber, sourceId } = details;
     const shouldLogRendererMessage =
-      !isDev ||
+      !shouldUseDevServer ||
       shouldAutoOpenDevTools ||
       level === "warning" ||
       level === "error";
@@ -607,7 +608,7 @@ const createMainWindow = async () => {
   });
 
   mainWindow.webContents.on("will-navigate", (event: Electron.Event, url: string) => {
-    const allowedPrefix = isDev ? devRendererUrl : "file://";
+    const allowedPrefix = shouldUseDevServer ? devRendererUrl : "file://";
 
     if (!url.startsWith(allowedPrefix)) {
       event.preventDefault();
@@ -615,7 +616,7 @@ const createMainWindow = async () => {
     }
   });
 
-  if (isDev) {
+  if (shouldUseDevServer) {
     await loadRendererWithRetry(mainWindow, devRendererUrl);
   } else {
     logDesktopMessage(`Loading packaged frontend from ${frontendEntry}.`);
@@ -747,7 +748,7 @@ const buildMenu = async () => {
     { role: "togglefullscreen", label: "Toggle Full Screen" },
   ];
 
-  if (isDev) {
+  if (shouldUseDevServer) {
     viewSubmenu.splice(1, 0, { type: "separator" }, { role: "reload" });
   }
 
@@ -994,7 +995,7 @@ app.whenReady().then(async () => {
   try {
     logDesktopMessage("CodeSight desktop startup initiated.");
     app.setAppUserModelId("com.codesight.desktop");
-    validateProductionBundle();
+    validateDesktopBundle();
     await startEmbeddedBackend();
     await buildMenu();
     createSplashWindow();
