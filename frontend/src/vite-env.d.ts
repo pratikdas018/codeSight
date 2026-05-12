@@ -62,6 +62,7 @@ interface Window {
     runCode: (payload: {
       code: string;
       language: SupportedLanguage;
+      stdin?: string;
     }) => Promise<import("./engine/types").ExecutionTrace>;
     openFile: (filePath?: string | null) => Promise<DesktopFilePayload>;
     saveFile: (payload: {

@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     platform: process.platform,
     version: process.env.npm_package_version ?? "1.0.0",
   },
-  runCode: (payload: { code: string; language: SupportedLanguage }) =>
+  runCode: (payload: { code: string; language: SupportedLanguage; stdin?: string }) =>
     ipcRenderer.invoke("desktop:run-code", payload),
   openFile: (filePath?: string | null) =>
     ipcRenderer.invoke("desktop:open-file", { filePath }),

@@ -269,6 +269,7 @@ export const HomePage = () => {
   const [language, setLanguage] = useState<SupportedLanguage>("python");
   const [title, setTitle] = useState(LANGUAGE_PRESETS.python.title);
   const [code, setCode] = useState(LANGUAGE_PRESETS.python.code);
+  const [programInput, setProgramInput] = useState("");
   const [trace, setTrace] = useState<ExecutionTrace>(createEmptyTrace("python"));
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [snippets, setSnippets] = useState<CodeSnippet[]>([]);
@@ -808,7 +809,7 @@ export const HomePage = () => {
     setIsExecuting(true);
 
     try {
-      const nextTrace = await executeCodeRequest(code, language);
+      const nextTrace = await executeCodeRequest(code, language, programInput);
       setTrace(nextTrace);
       setCurrentStepIndex(0);
       setIsPlaying(false);
@@ -816,9 +817,13 @@ export const HomePage = () => {
       setActiveRailSection(nextTrace.steps.length > 0 ? "variables" : "guide");
 
       if (nextTrace.error) {
+        const timeoutHint =
+          nextTrace.timedOut && !programInput.trim()
+            ? " If your program expects input, add it in the Program Input box before running again."
+            : "";
         setNotice({
           tone: "error",
-          message: `${languageLabels[language]} run failed in ${nextTrace.executionTime}ms. ${nextTrace.error}`,
+          message: `${languageLabels[language]} run failed in ${nextTrace.executionTime}ms. ${nextTrace.error}${timeoutHint}`,
         });
       } else {
         setNotice({
@@ -1447,6 +1452,32 @@ export const HomePage = () => {
                 <div className="ml-auto text-xs text-slate-500">
                   Paste code, press <span className="text-slate-300">Run</span>, then use the footer to step through it.
                 </div>
+              </div>
+
+              <div className="border-b border-white/10 bg-[#11161e] px-4 py-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                      Program Input
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      Add stdin here for programs that use `cin`, `scanf`, `input()`, or `Scanner`.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setProgramInput("")}
+                    className="rounded-md border border-white/10 bg-[#1d2026] px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-slate-300 transition hover:border-cyan-400/35 hover:text-cyan-200"
+                  >
+                    Clear Input
+                  </button>
+                </div>
+                <textarea
+                  value={programInput}
+                  onChange={(event) => setProgramInput(event.target.value)}
+                  placeholder={"Example:\n5\n10 20 30 40 50"}
+                  className="h-24 w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 font-['JetBrains_Mono'] text-sm text-slate-200 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/35"
+                />
               </div>
 
               <div className="flex-1 overflow-hidden">

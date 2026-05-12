@@ -8,6 +8,7 @@ interface RemoteErrorPayload {
 export const executeRemotely = async (
   code: string,
   language: SupportedLanguage,
+  stdin = "",
 ): Promise<ExecutionTrace> => {
   requireRemoteExecutorConfig();
   const controller = new AbortController();
@@ -23,7 +24,7 @@ export const executeRemotely = async (
         "Content-Type": "application/json",
         "x-executor-token": env.executorSharedSecret,
       },
-      body: JSON.stringify({ code, language }),
+      body: JSON.stringify({ code, language, stdin }),
       signal: controller.signal,
     });
 

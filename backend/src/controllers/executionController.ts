@@ -5,6 +5,7 @@ import { isSupportedLanguage, supportedLanguages } from "../types/execution";
 export const execute = async (request: Request, response: Response) => {
   const code = String(request.body.code ?? "");
   const language = String(request.body.language ?? "").trim().toLowerCase();
+  const stdin = String(request.body.stdin ?? "");
 
   if (!code.trim()) {
     return response.status(400).json({
@@ -19,7 +20,7 @@ export const execute = async (request: Request, response: Response) => {
   }
 
   try {
-    const result = await executeCode(code, language);
+    const result = await executeCode(code, language, stdin);
     return response.json(result);
   } catch (error) {
     return response.status(503).json({

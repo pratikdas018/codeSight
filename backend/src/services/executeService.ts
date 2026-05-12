@@ -8,15 +8,16 @@ import { executeJavaScript } from "./execution/javascriptTraceService";
 export const executeCodeDirect = async (
   code: string,
   language: SupportedLanguage,
+  stdin = "",
 ): Promise<ExecutionTrace> => {
-  const runLocal = () => executeLocally(code, language);
+  const runLocal = () => executeLocally(code, language, stdin);
 
   if (env.executionProvider === "local") {
     return runLocal();
   }
 
   try {
-    const execution = await executeInDocker(code, language);
+    const execution = await executeInDocker(code, language, stdin);
 
     if (language === "javascript" && !execution.error && !execution.timedOut) {
       const trace = executeJavaScript(code);
@@ -40,10 +41,11 @@ export const executeCodeDirect = async (
 export const executeCode = async (
   code: string,
   language: SupportedLanguage,
+  stdin = "",
 ): Promise<ExecutionTrace> => {
   if (env.executorMode === "remote") {
-    return executeRemotely(code, language);
+    return executeRemotely(code, language, stdin);
   }
 
-  return executeCodeDirect(code, language);
+  return executeCodeDirect(code, language, stdin);
 };

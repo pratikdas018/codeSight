@@ -22,6 +22,7 @@ interface DesktopFilePayload {
 interface DesktopRunPayload {
   code: string;
   language: SupportedLanguage;
+  stdin?: string;
 }
 
 interface MenuActionEvent {
@@ -254,7 +255,7 @@ const buildDesktopEnvironment = () => {
     EXECUTOR_MODE:
       process.env.CODESIGHT_DESKTOP_EXECUTOR_MODE ??
       (shouldUseHostedApiInProduction ? "remote" : "local"),
-    EXECUTION_PROVIDER: process.env.EXECUTION_PROVIDER ?? "auto",
+    EXECUTION_PROVIDER: process.env.EXECUTION_PROVIDER ?? "local",
     CODESIGHT_BACKEND_URL: `http://127.0.0.1:${productionBackendPort}`,
     REMOTE_EXECUTOR_URL:
       process.env.REMOTE_EXECUTOR_URL ??

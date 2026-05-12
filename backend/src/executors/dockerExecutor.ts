@@ -205,6 +205,7 @@ const buildGenericTrace = (
 export const executeInDocker = async (
   code: string,
   language: SupportedLanguage,
+  _stdin = "",
 ): Promise<ExecutionTrace> => {
   const config = languageExecutionConfigs[language];
   const workspaceDir = path.join(

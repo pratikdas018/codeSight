@@ -30,10 +30,11 @@ const request = async <T>(path: string, options: RequestInit = {}) => {
 export const executeCodeRequest = (
   code: string,
   language: SupportedLanguage,
+  stdin = "",
 ) =>
   window.electronAPI?.runCode
-    ? window.electronAPI.runCode({ code, language })
+    ? window.electronAPI.runCode({ code, language, stdin })
     : request<ExecutionTrace>("/execute", {
         method: "POST",
-        body: JSON.stringify({ code, language }),
+        body: JSON.stringify({ code, language, stdin }),
       });

@@ -10,9 +10,13 @@ const execFileAsync = promisify(execFile);
 const executionTimeoutMs = 8000;
 const executionMaxBuffer = 1024 * 1024;
 
-const pythonRunnerTemplate = (encodedUserCode: string) => `
+const pythonRunnerTemplate = (
+  encodedUserCode: string,
+  encodedUserInput: string,
+) => `
 import base64
 import contextlib
+import io
 import json
 import linecache
 import sys
@@ -21,6 +25,7 @@ from types import FrameType
 
 FILENAME = "<codesight>"
 USER_CODE = base64.b64decode("${encodedUserCode}").decode("utf-8")
+USER_STDIN = base64.b64decode("${encodedUserInput}").decode("utf-8")
 
 linecache.cache[FILENAME] = (
     len(USER_CODE),
@@ -122,6 +127,7 @@ namespace = {
 try:
     compiled = compile(USER_CODE, FILENAME, "exec")
     sys.settrace(tracer)
+    sys.stdin = io.StringIO(USER_STDIN)
     with contextlib.redirect_stdout(console_output):
         exec(compiled, namespace, namespace)
 except Exception:
@@ -155,14 +161,22 @@ const getPythonCandidates = (): PythonCommand[] => {
   ];
 };
 
-export const executePython = async (code: string): Promise<ExecutionTimeline> => {
+export const executePython = async (
+  code: string,
+  stdin = "",
+): Promise<ExecutionTimeline> => {
   const tempDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), "codesight-python-"),
   );
   const runnerPath = path.join(tempDirectory, "runner.py");
   const encodedUserCode = Buffer.from(code, "utf8").toString("base64");
+  const encodedUserInput = Buffer.from(stdin, "utf8").toString("base64");
 
-  await fs.writeFile(runnerPath, pythonRunnerTemplate(encodedUserCode), "utf8");
+  await fs.writeFile(
+    runnerPath,
+    pythonRunnerTemplate(encodedUserCode, encodedUserInput),
+    "utf8",
+  );
 
   try {
     let lastError: unknown = null;

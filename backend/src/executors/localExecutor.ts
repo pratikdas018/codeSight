@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -50,25 +50,110 @@ const getJavaHomeBinCandidate = (binaryName: "java" | "javac") => {
   return [{ command: executable }];
 };
 
+const runCommand = (
+  command: string,
+  args: string[],
+  cwd?: string,
+  stdin = "",
+) =>
+  new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let stdoutLength = 0;
+    let stderrLength = 0;
+    let timedOut = false;
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+      stdoutLength += Buffer.byteLength(chunk);
+
+      if (stdoutLength + stderrLength > maxBuffer) {
+        child.kill();
+      }
+    });
+
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+      stderrLength += Buffer.byteLength(chunk);
+
+      if (stdoutLength + stderrLength > maxBuffer) {
+        child.kill();
+      }
+    });
+
+    const timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, executionTimeoutMs);
+
+    child.once("error", (error) => {
+      clearTimeout(timeoutHandle);
+      reject(error);
+    });
+
+    if (stdin) {
+      child.stdin.write(stdin);
+    }
+    child.stdin.end();
+
+    child.once("close", (code) => {
+      clearTimeout(timeoutHandle);
+
+      if (timedOut) {
+        reject({
+          code: "ETIMEDOUT",
+          stdout,
+          stderr,
+        });
+        return;
+      }
+
+      if (stdoutLength + stderrLength > maxBuffer) {
+        reject({
+          code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+          stdout,
+          stderr,
+        });
+        return;
+      }
+
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+
+      reject({
+        code,
+        stdout,
+        stderr,
+      });
+    });
+  });
+
 const runWithCandidates = async (
   candidates: CommandCandidate[],
   args: string[],
   cwd?: string,
+  stdin = "",
 ) => {
   let lastError: unknown = null;
 
   for (const candidate of candidates) {
     try {
-      return await execFileAsync(
+      return await runCommand(
         candidate.command,
         [...(candidate.args ?? []), ...args],
-        {
-          cwd,
-          timeout: executionTimeoutMs,
-          maxBuffer,
-          encoding: "utf8",
-          windowsHide: true,
-        },
+        cwd,
+        stdin,
       );
     } catch (error) {
       if (
@@ -208,7 +293,10 @@ const normalizeExecError = (
   };
 };
 
-const executeJavaScriptLocally = async (code: string): Promise<ExecutionTrace> => {
+const executeJavaScriptLocally = async (
+  code: string,
+  stdin = "",
+): Promise<ExecutionTrace> => {
   const workspaceDir = path.join(os.tmpdir(), "codesight-js", randomUUID());
   const filePath = path.join(workspaceDir, "main.js");
   await fs.mkdir(workspaceDir, { recursive: true });
@@ -217,9 +305,19 @@ const executeJavaScriptLocally = async (code: string): Promise<ExecutionTrace> =
   const startedAt = performance.now();
 
   try {
+    const executionPromise = runWithCandidates(
+      getNodeCandidates(),
+      [filePath],
+      workspaceDir,
+      stdin,
+    );
+    const timelinePromise =
+      stdin.trim().length === 0
+        ? Promise.resolve(executeJavaScript(code))
+        : Promise.resolve({ steps: [], output: [] });
     const [{ stdout, stderr }, timeline] = await Promise.all([
-      runWithCandidates(getNodeCandidates(), [filePath], workspaceDir),
-      Promise.resolve(executeJavaScript(code)),
+      executionPromise,
+      timelinePromise,
     ]);
 
     return buildTrace(
@@ -242,11 +340,14 @@ const executeJavaScriptLocally = async (code: string): Promise<ExecutionTrace> =
   }
 };
 
-const executePythonLocally = async (code: string): Promise<ExecutionTrace> => {
+const executePythonLocally = async (
+  code: string,
+  stdin = "",
+): Promise<ExecutionTrace> => {
   const startedAt = performance.now();
 
   try {
-    const timeline = await executePython(code);
+    const timeline = await executePython(code, stdin);
     const output = timeline.output.join("\n");
 
     return buildTrace(
@@ -270,6 +371,7 @@ const executePythonLocally = async (code: string): Promise<ExecutionTrace> => {
 const compileAndRunLocally = async (
   language: "c" | "cpp",
   code: string,
+  stdin = "",
 ): Promise<ExecutionTrace> => {
   const workspaceDir = path.join(os.tmpdir(), `codesight-${language}`, randomUUID());
   const sourceFile = path.join(workspaceDir, language === "c" ? "main.c" : "main.cpp");
@@ -286,13 +388,7 @@ const compileAndRunLocally = async (
       workspaceDir,
     );
 
-    const { stdout, stderr } = await execFileAsync(outputFile, [], {
-      cwd: workspaceDir,
-      timeout: executionTimeoutMs,
-      maxBuffer,
-      encoding: "utf8",
-      windowsHide: true,
-    });
+    const { stdout, stderr } = await runCommand(outputFile, [], workspaceDir, stdin);
 
     return buildTrace(
       code,
@@ -313,7 +409,10 @@ const compileAndRunLocally = async (
   }
 };
 
-const executeJavaLocally = async (code: string): Promise<ExecutionTrace> => {
+const executeJavaLocally = async (
+  code: string,
+  stdin = "",
+): Promise<ExecutionTrace> => {
   const workspaceDir = path.join(os.tmpdir(), "codesight-java", randomUUID());
   const sourceFile = path.join(workspaceDir, "Main.java");
   await fs.mkdir(workspaceDir, { recursive: true });
@@ -327,6 +426,7 @@ const executeJavaLocally = async (code: string): Promise<ExecutionTrace> => {
       getJavaCandidates(),
       ["-cp", workspaceDir, "Main"],
       workspaceDir,
+      stdin,
     );
 
     return buildTrace(
@@ -351,17 +451,18 @@ const executeJavaLocally = async (code: string): Promise<ExecutionTrace> => {
 export const executeLocally = async (
   code: string,
   language: SupportedLanguage,
+  stdin = "",
 ): Promise<ExecutionTrace> => {
   switch (language) {
     case "javascript":
-      return executeJavaScriptLocally(code);
+      return executeJavaScriptLocally(code, stdin);
     case "python":
-      return executePythonLocally(code);
+      return executePythonLocally(code, stdin);
     case "c":
-      return compileAndRunLocally("c", code);
+      return compileAndRunLocally("c", code, stdin);
     case "cpp":
-      return compileAndRunLocally("cpp", code);
+      return compileAndRunLocally("cpp", code, stdin);
     case "java":
-      return executeJavaLocally(code);
+      return executeJavaLocally(code, stdin);
   }
 };

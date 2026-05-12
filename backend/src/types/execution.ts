@@ -38,6 +38,12 @@ export interface ExecutionTrace {
   language: SupportedLanguage;
 }
 
+export interface ExecutionRequest {
+  code: string;
+  language: SupportedLanguage;
+  stdin?: string;
+}
+
 export const isSupportedLanguage = (
   value: string,
 ): value is SupportedLanguage =>
