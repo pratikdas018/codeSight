@@ -1,4 +1,4 @@
 {
-  "productionApiBaseUrl": "https://api.codesight.app",
+  "productionApiBaseUrl": "https://codesight-aqe8.onrender.com",
   "preferHostedApiInProduction": false
 }
