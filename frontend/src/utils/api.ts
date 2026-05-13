@@ -1,7 +1,7 @@
 import type { SupportedLanguage } from "./types";
 import type { ExecutionTrace } from "../engine/types";
 
-const API_BASE_URL =
+export const API_BASE_URL =
   window.electronAPI?.env.backendUrl ??
   import.meta.env.VITE_API_BASE_URL ??
   "http://localhost:4000";
@@ -38,3 +38,13 @@ export const executeCodeRequest = (
         method: "POST",
         body: JSON.stringify({ code, language, stdin }),
       });
+
+export interface RuntimeHealthPayload {
+  status: "ok";
+  service: string;
+  executorMode: "local" | "remote";
+  executionProvider: string;
+}
+
+export const fetchRuntimeHealth = (signal?: AbortSignal) =>
+  request<RuntimeHealthPayload>("/health", { signal });

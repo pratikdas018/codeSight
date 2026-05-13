@@ -14,6 +14,7 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import clsx from "clsx";
 import { ExecutionVisualizer } from "../components/ExecutionVisualizer";
+import { FooterBar } from "../components/FooterBar";
 import { PlaybackDock } from "../components/PlaybackDock";
 import { ToastViewport } from "../components/ToastViewport";
 import { useAuth } from "../hooks/useAuth";
@@ -26,7 +27,7 @@ import {
   listSnippets,
   updateSnippet,
 } from "../services/snippetService";
-import { executeCodeRequest } from "../utils/api";
+import { executeCodeRequest, fetchRuntimeHealth } from "../utils/api";
 import type { ExecutionTrace } from "../engine/types";
 import type {
   CodeSnippet,
@@ -40,7 +41,11 @@ import {
   type MenuActionEvent,
   type RecentFileRecord,
 } from "../utils/desktop";
-import { formatDate } from "../utils/formatters";
+import {
+  formatDate,
+  formatDuration,
+  formatMemoryUsage,
+} from "../utils/formatters";
 import { createVisualizationModel } from "../visualization/model";
 
 const createEmptyTrace = (language: SupportedLanguage): ExecutionTrace => ({
@@ -115,6 +120,8 @@ const languageRunLabels: Record<SupportedLanguage, string> = {
 };
 
 type WorkspaceTab = "explorer" | "debugger" | "visualizer";
+type ThemeMode = "noctis" | "graphite";
+type FooterTone = "neutral" | "info" | "success" | "warning" | "error";
 type SectionKey =
   | "guide"
   | "variables"
@@ -122,6 +129,23 @@ type SectionKey =
   | "flow"
   | "library"
   | "account";
+
+interface RuntimeHealthSnapshot {
+  connection: "checking" | "online" | "offline";
+  executorMode: "local" | "remote";
+  executionProvider: string;
+}
+
+const defaultRuntimeHealth: RuntimeHealthSnapshot = {
+  connection: "checking",
+  executorMode: "local",
+  executionProvider: "local",
+};
+
+const monacoThemeMap: Record<ThemeMode, string> = {
+  noctis: "codesight-noctis",
+  graphite: "codesight-graphite",
+};
 
 const railItems: Array<{
   label: string;
@@ -328,6 +352,15 @@ export const HomePage = () => {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showProgramInput, setShowProgramInput] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") {
+      return "noctis";
+    }
+
+    return window.localStorage.getItem("codesight-theme") === "graphite"
+      ? "graphite"
+      : "noctis";
+  });
   const [language, setLanguage] = useState<SupportedLanguage>("python");
   const [title, setTitle] = useState(LANGUAGE_PRESETS.python.title);
   const [code, setCode] = useState(LANGUAGE_PRESETS.python.code);
@@ -339,12 +372,15 @@ export const HomePage = () => {
   const [currentSnippetId, setCurrentSnippetId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [executionElapsedMs, setExecutionElapsedMs] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isManagingDesktopFiles, setIsManagingDesktopFiles] = useState(false);
   const [desktopFilePath, setDesktopFilePath] = useState<string | null>(null);
   const [desktopFileName, setDesktopFileName] = useState<string | null>(null);
   const [recentFiles, setRecentFiles] = useState<RecentFileRecord[]>([]);
+  const [runtimeHealth, setRuntimeHealth] =
+    useState<RuntimeHealthSnapshot>(defaultRuntimeHealth);
   const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -364,6 +400,7 @@ export const HomePage = () => {
   const decorationsRef =
     useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
+  const executionStartedAtRef = useRef<number | null>(null);
   const explanationNodeRef = useRef<HTMLDivElement | null>(null);
   const explanationPositionRef = useRef<Monaco.Position | null>(null);
   const explanationWidgetRef = useRef<Monaco.editor.IContentWidget | null>(null);
@@ -380,6 +417,69 @@ export const HomePage = () => {
     setCurrentStepIndex,
     stepDurationMs,
   );
+
+  useEffect(() => {
+    document.documentElement.dataset.codesightTheme = themeMode;
+    window.localStorage.setItem("codesight-theme", themeMode);
+    monacoRef.current?.editor.setTheme(monacoThemeMap[themeMode]);
+  }, [themeMode]);
+
+  useEffect(() => {
+    if (!isExecuting || executionStartedAtRef.current === null) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      if (executionStartedAtRef.current === null) {
+        return;
+      }
+
+      setExecutionElapsedMs(Date.now() - executionStartedAtRef.current);
+    }, 120);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [isExecuting]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRuntimeHealth = async () => {
+      try {
+        const health = await fetchRuntimeHealth();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setRuntimeHealth({
+          connection: "online",
+          executorMode: health.executorMode,
+          executionProvider: health.executionProvider,
+        });
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setRuntimeHealth((current) => ({
+          ...current,
+          connection: "offline",
+        }));
+      }
+    };
+
+    void loadRuntimeHealth();
+    const poller = window.setInterval(() => {
+      void loadRuntimeHealth();
+    }, 30_000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(poller);
+    };
+  }, []);
 
   const activeStep = trace.steps[currentStepIndex] ?? null;
   const previousStep =
@@ -798,7 +898,30 @@ export const HomePage = () => {
         "editorIndentGuide.activeBackground1": "#1F4566",
       },
     });
-    monaco.editor.setTheme("codesight-noctis");
+    monaco.editor.defineTheme("codesight-graphite", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [
+        { token: "comment", foreground: "6D7B8E", fontStyle: "italic" },
+        { token: "keyword", foreground: "72D1FF" },
+        { token: "string", foreground: "A7F3D0" },
+        { token: "number", foreground: "8ABFFF" },
+        { token: "type.identifier", foreground: "9DB7D5" },
+      ],
+      colors: {
+        "editor.background": "#0A1118",
+        "editorGutter.background": "#0A1118",
+        "editorLineNumber.foreground": "#556579",
+        "editorLineNumber.activeForeground": "#E1EFFA",
+        "editor.selectionBackground": "#173047",
+        "editor.inactiveSelectionBackground": "#12273A",
+        "editor.lineHighlightBackground": "#0E1824",
+        "editorCursor.foreground": "#9BE7FF",
+        "editorIndentGuide.background1": "#182838",
+        "editorIndentGuide.activeBackground1": "#29465F",
+      },
+    });
+    monaco.editor.setTheme(monacoThemeMap[themeMode]);
 
     explanationWidgetRef.current = {
       getId: () => "codesight-explanation-widget",
@@ -893,11 +1016,18 @@ export const HomePage = () => {
 
   const runCode = async () => {
     stopPlayback();
+    executionStartedAtRef.current = Date.now();
+    setExecutionElapsedMs(0);
     setIsExecuting(true);
 
     try {
       const nextTrace = await executeCodeRequest(code, language, programInput);
       setTrace(nextTrace);
+      setExecutionElapsedMs(nextTrace.executionTime);
+      setRuntimeHealth((current) => ({
+        ...current,
+        connection: "online",
+      }));
       setCurrentStepIndex(0);
       setIsPlaying(false);
       setActiveWorkspaceTab(nextTrace.steps.length > 0 ? "debugger" : "explorer");
@@ -948,16 +1078,26 @@ export const HomePage = () => {
         });
       }
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to execute code.";
+
       setTrace({
         ...createEmptyTrace(language),
-        error: error instanceof Error ? error.message : "Unable to execute code.",
+        error: message,
       });
+      setExecutionElapsedMs(0);
+      if (/fetch|network|backend request failed/i.test(message)) {
+        setRuntimeHealth((current) => ({
+          ...current,
+          connection: "offline",
+        }));
+      }
       setNotice({
         tone: "error",
-        message:
-          error instanceof Error ? error.message : "Unable to execute code.",
+        message,
       });
     } finally {
+      executionStartedAtRef.current = null;
       setIsExecuting(false);
     }
   };
@@ -1269,9 +1409,67 @@ export const HomePage = () => {
       ? "history"
       : activeRailSection === "account"
         ? "settings"
-        : activeRailSection === "flow"
-          ? "visualizer"
-          : "learning";
+      : activeRailSection === "flow"
+        ? "visualizer"
+        : "learning";
+  const footerExecutionTone: FooterTone = isExecuting
+    ? "info"
+    : trace.status === "completed"
+      ? "success"
+      : trace.status === "compile_error"
+        ? "warning"
+        : trace.status === "runtime_error" ||
+            trace.status === "timed_out" ||
+            trace.status === "internal_error"
+          ? "error"
+          : "neutral";
+  const footerExecutionLabel = isExecuting
+    ? `Running ${languageLabels[language]}...`
+    : trace.status === "compile_error"
+      ? `${languageLabels[language]} Compile Error`
+      : trace.status === "runtime_error"
+        ? `${languageLabels[language]} Runtime Error`
+        : trace.status === "timed_out"
+          ? `${languageLabels[language]} Timed Out`
+          : trace.status === "internal_error"
+            ? "Execution Error"
+            : "Ready";
+  const runtimeLabel =
+    runtimeHealth.connection === "offline"
+      ? runtimeHealth.executionProvider === "docker"
+        ? "Docker Offline"
+        : "Runtime Offline"
+      : runtimeHealth.connection === "checking"
+        ? "Checking Runtime"
+        : runtimeHealth.executorMode === "remote"
+          ? "Remote Runtime"
+          : runtimeHealth.executionProvider === "docker"
+            ? "Docker Runtime"
+            : runtimeHealth.executionProvider === "auto"
+              ? "Hybrid Runtime"
+              : "Local Runtime";
+  const runtimeTone: FooterTone =
+    runtimeHealth.connection === "offline"
+      ? "error"
+      : runtimeHealth.connection === "checking"
+        ? "info"
+        : "success";
+  const runtimeIcon =
+    runtimeHealth.connection === "offline"
+      ? "cloud_off"
+      : runtimeHealth.connection === "checking"
+        ? "hourglass_top"
+        : runtimeHealth.executorMode === "remote"
+          ? "cloud_sync"
+          : "terminal";
+  const footerExecutionTime = isExecuting
+    ? `${Math.max(0, executionElapsedMs)}ms`
+    : formatDuration(trace.executionTime);
+  const footerMemoryUsage = formatMemoryUsage(trace.metrics.peakMemoryKb);
+  const footerCurrentLine = activeStep?.line ? `Line ${activeStep.line}` : "Line --";
+  const appVersionLabel = isDesktop
+    ? `v${window.electronAPI?.env.version ?? "1.0.0"}`
+    : "Web Preview";
 
   return (
     <main className="min-h-screen bg-[#07111f] text-[#e5edf8]">
@@ -1350,7 +1548,7 @@ export const HomePage = () => {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1900px] px-3 pb-32 pt-4 sm:px-4 lg:px-6">
+      <div className="mx-auto max-w-[1900px] px-3 pb-48 pt-4 sm:px-4 lg:px-6">
         <div className="grid gap-4 xl:grid-cols-[auto,minmax(0,1fr),clamp(22rem,26vw,29rem)]">
           <aside
             className={clsx(
@@ -1518,7 +1716,7 @@ export const HomePage = () => {
                 value={code}
                 onChange={(value) => setCode(value ?? "")}
                 onMount={handleEditorMount}
-                theme="codesight-noctis"
+                theme={monacoThemeMap[themeMode]}
                 options={{
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 15,
@@ -1778,6 +1976,26 @@ export const HomePage = () => {
           togglePlayback();
         }}
         onReset={handleReset}
+      />
+      <FooterBar
+        languageLabel={languageLabels[language]}
+        executionStatusLabel={footerExecutionLabel}
+        executionStatusTone={footerExecutionTone}
+        executionTimeLabel={footerExecutionTime}
+        memoryUsageLabel={footerMemoryUsage}
+        currentLineLabel={footerCurrentLine}
+        runtimeLabel={runtimeLabel}
+        runtimeTone={runtimeTone}
+        runtimePulse={runtimeHealth.connection !== "online"}
+        runtimeIcon={runtimeIcon}
+        appVersionLabel={appVersionLabel}
+        themeMode={themeMode}
+        onThemeToggle={() =>
+          setThemeMode((current) =>
+            current === "noctis" ? "graphite" : "noctis",
+          )
+        }
+        onOpenSettings={() => scrollToSection("account", "explorer")}
       />
       <ToastViewport notice={notice} onDismiss={() => setNotice(null)} />
     </main>

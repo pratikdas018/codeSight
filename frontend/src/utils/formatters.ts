@@ -44,3 +44,31 @@ export const formatDate = (value: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+
+export const formatDuration = (value?: number | null) => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "--";
+  }
+
+  if (value < 1_000) {
+    return `${Math.round(value)}ms`;
+  }
+
+  if (value < 10_000) {
+    return `${(value / 1_000).toFixed(1)}s`;
+  }
+
+  return `${Math.round(value / 1_000)}s`;
+};
+
+export const formatMemoryUsage = (valueKb?: number | null) => {
+  if (typeof valueKb !== "number" || !Number.isFinite(valueKb) || valueKb <= 0) {
+    return "--";
+  }
+
+  if (valueKb < 1_024) {
+    return `${Math.round(valueKb)} KB`;
+  }
+
+  return `${(valueKb / 1_024).toFixed(valueKb >= 10_240 ? 0 : 1)} MB`;
+};

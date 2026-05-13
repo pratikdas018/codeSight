@@ -20,6 +20,28 @@
   --cs-glow-strong: #2ba8ff;
   --cs-mint: #59f7cb;
   --cs-shadow: 0 10px 30px rgba(3, 10, 24, 0.22);
+  --cs-body-start: #08111e;
+  --cs-body-mid: #07111f;
+  --cs-body-end: #09131f;
+  --cs-body-spot: rgba(64, 200, 255, 0.08);
+  --cs-body-glow: rgba(99, 231, 255, 0.05);
+}
+
+:root[data-codesight-theme="graphite"] {
+  --cs-bg: #081018;
+  --cs-bg-elevated: rgba(11, 19, 29, 0.88);
+  --cs-bg-panel: rgba(18, 29, 40, 0.74);
+  --cs-border: rgba(165, 196, 222, 0.14);
+  --cs-border-strong: rgba(111, 208, 255, 0.16);
+  --cs-text-muted: #95a9be;
+  --cs-glow: #72d1ff;
+  --cs-glow-strong: #3aa0d8;
+  --cs-shadow: 0 10px 30px rgba(3, 10, 24, 0.28);
+  --cs-body-start: #0b1118;
+  --cs-body-mid: #081018;
+  --cs-body-end: #0d1721;
+  --cs-body-spot: rgba(92, 150, 204, 0.07);
+  --cs-body-glow: rgba(105, 200, 255, 0.045);
 }
 
 * {
@@ -40,10 +62,11 @@ body {
   margin: 0;
   min-width: 320px;
   background:
-    radial-gradient(circle at top left, rgba(64, 200, 255, 0.08), transparent 28%),
-    linear-gradient(180deg, #08111e 0%, #07111f 56%, #09131f 100%);
+    radial-gradient(circle at top left, var(--cs-body-spot), transparent 28%),
+    linear-gradient(180deg, var(--cs-body-start) 0%, var(--cs-body-mid) 56%, var(--cs-body-end) 100%);
   color: var(--cs-text);
   overflow-x: hidden;
+  transition: background 180ms ease-out;
 }
 
 body::before,
@@ -65,7 +88,7 @@ body::before {
 }
 
 body::after {
-  background: radial-gradient(circle at 20% 22%, rgba(99, 231, 255, 0.05), transparent 18%);
+  background: radial-gradient(circle at 20% 22%, var(--cs-body-glow), transparent 18%);
   filter: blur(18px);
 }
 

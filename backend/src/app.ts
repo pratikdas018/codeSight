@@ -59,6 +59,7 @@ app.get("/health", (_request, response) => {
     status: "ok",
     service: "api",
     executorMode: env.executorMode,
+    executionProvider: env.executionProvider,
   });
 });
 
