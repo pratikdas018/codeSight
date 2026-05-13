@@ -13,7 +13,8 @@ import { motion } from "framer-motion";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import clsx from "clsx";
-import { ArrayVisualizer } from "../components/ArrayVisualizer";
+import { ExecutionVisualizer } from "../components/ExecutionVisualizer";
+import { PlaybackDock } from "../components/PlaybackDock";
 import { ToastViewport } from "../components/ToastViewport";
 import { useAuth } from "../hooks/useAuth";
 import { usePlayback } from "../hooks/usePlayback";
@@ -93,7 +94,37 @@ type SectionKey =
   | "library"
   | "account";
 
-const sideRailIcons = ["folder", "search", "account_tree", "extension"] as const;
+const railItems: Array<{
+  label: string;
+  section: SectionKey;
+  tab: WorkspaceTab;
+  icon: string;
+}> = [
+  {
+    label: "Guide",
+    section: "guide",
+    tab: "explorer",
+    icon: "menu_book",
+  },
+  {
+    label: "Flow",
+    section: "flow",
+    tab: "visualizer",
+    icon: "timeline",
+  },
+  {
+    label: "Library",
+    section: "library",
+    tab: "explorer",
+    icon: "history",
+  },
+  {
+    label: "Account",
+    section: "account",
+    tab: "explorer",
+    icon: "person",
+  },
+];
 
 const LANGUAGE_PRESETS: Record<
   SupportedLanguage,
@@ -261,11 +292,13 @@ const buildPlainEnglishSummary = (lineText: string, language: SupportedLanguage)
 
 export const HomePage = () => {
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
-    useState<WorkspaceTab>("debugger");
+    useState<WorkspaceTab>("explorer");
   const [activeRailSection, setActiveRailSection] =
-    useState<SectionKey>("variables");
+    useState<SectionKey>("guide");
   const [focusMode, setFocusMode] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showProgramInput, setShowProgramInput] = useState(false);
   const [language, setLanguage] = useState<SupportedLanguage>("python");
   const [title, setTitle] = useState(LANGUAGE_PRESETS.python.title);
   const [code, setCode] = useState(LANGUAGE_PRESETS.python.code);
@@ -713,6 +746,31 @@ export const HomePage = () => {
     decorationsRef.current = editor.createDecorationsCollection([]);
     explanationNodeRef.current = document.createElement("div");
 
+    monaco.editor.defineTheme("codesight-noctis", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [
+        { token: "comment", foreground: "607089", fontStyle: "italic" },
+        { token: "keyword", foreground: "63E7FF" },
+        { token: "string", foreground: "8FFFD6" },
+        { token: "number", foreground: "6CB6FF" },
+        { token: "type.identifier", foreground: "8ABFFF" },
+      ],
+      colors: {
+        "editor.background": "#08111E",
+        "editorGutter.background": "#08111E",
+        "editorLineNumber.foreground": "#4F627A",
+        "editorLineNumber.activeForeground": "#D4F7FF",
+        "editor.selectionBackground": "#12314D",
+        "editor.inactiveSelectionBackground": "#0D2338",
+        "editor.lineHighlightBackground": "#0A1727",
+        "editorCursor.foreground": "#8FFFD6",
+        "editorIndentGuide.background1": "#13263C",
+        "editorIndentGuide.activeBackground1": "#1F4566",
+      },
+    });
+    monaco.editor.setTheme("codesight-noctis");
+
     explanationWidgetRef.current = {
       getId: () => "codesight-explanation-widget",
       getDomNode: () => explanationNodeRef.current as HTMLDivElement,
@@ -1071,20 +1129,6 @@ export const HomePage = () => {
   const scrollToSection = (section: SectionKey, tab: WorkspaceTab) => {
     setActiveWorkspaceTab(tab);
     setActiveRailSection(section);
-
-    const sectionMap = {
-      guide: guideSectionRef,
-      variables: variablesSectionRef,
-      memory: memorySectionRef,
-      flow: flowSectionRef,
-      library: librarySectionRef,
-      account: accountSectionRef,
-    };
-
-    sectionMap[section].current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
   };
 
   const handlePrevious = () => {
@@ -1163,1047 +1207,537 @@ export const HomePage = () => {
     (trace.steps.length === 0
       ? LANGUAGE_PRESETS[language].description
       : "Use the timeline to move through the captured execution state.");
-  const debugTabActive = activeWorkspaceTab === "debugger";
-  const explorerTabActive = activeWorkspaceTab === "explorer";
-  const visualizerTabActive = activeWorkspaceTab === "visualizer";
+  const activeSidebarLabel =
+    railItems.find((item) => item.section === activeRailSection)?.label ?? "Explorer";
+  const runStateLabel = trace.error
+    ? "Execution blocked"
+    : trace.steps.length > 0
+      ? "Trace captured"
+      : "Workbench idle";
+  const runStateDetail = trace.error
+    ? trace.error
+    : trace.steps.length > 0
+      ? `${trace.steps.length} timeline steps ready for playback.`
+      : "Choose a language, edit code, and capture a fresh execution trace.";
+  const featuredOutput = consoleOutput.slice(-5);
+  const historyPreview = history.slice(0, 5);
+  const accountInitial = user?.email?.slice(0, 1).toUpperCase() ?? "G";
+  const conciseVariables = trackedVariables.slice(0, 8);
+  const compactFlowSteps = flowWindow.slice(0, 4);
+  const changedArrayItems = primaryArray?.items.filter((item) => item.changed).slice(0, 6) ?? [];
+  const insightMode =
+    activeRailSection === "library"
+      ? "history"
+      : activeRailSection === "account"
+        ? "settings"
+        : activeRailSection === "flow"
+          ? "visualizer"
+          : "learning";
 
   return (
-    <main className="min-h-screen bg-[#0b0e14] text-[#e1e2eb]">
-      <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-white/10 bg-[#0b0e14]/85 px-4 shadow-[0_20px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:px-6">
-        <div className="flex items-center gap-4 sm:gap-8">
-          <button
-            type="button"
-            onClick={() => scrollToSection("guide", "explorer")}
-            className="bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-left text-lg font-bold tracking-tight text-transparent"
-          >
-            CodeSight
-          </button>
-          <nav className="hidden items-center gap-6 md:flex">
+    <main className="min-h-screen bg-[#07111f] text-[#e5edf8]">
+      <header className="sticky top-0 z-50 border-b border-white/8 bg-[rgba(7,17,31,0.88)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1900px] items-center justify-between gap-4 px-3 py-3 sm:px-4 lg:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed((current) => !current)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/[0.03] text-slate-300 transition hover:border-white/15 hover:text-white"
+              aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                {isSidebarCollapsed ? "right_panel_open" : "left_panel_close"}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => scrollToSection("guide", "explorer")}
-              className={clsx(
-                "text-sm transition hover:text-slate-200",
-                explorerTabActive
-                  ? "border-b-2 border-cyan-400 pb-1 font-semibold text-cyan-400"
-                  : "text-slate-400",
-              )}
+              className="min-w-0 text-left"
             >
-              Explorer
+              <div className="text-lg font-semibold tracking-[-0.03em] text-white">
+                CodeSight
+              </div>
+              <div className="text-xs text-slate-500">
+                Clean runtime visualizations for learning code execution
+              </div>
             </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection("variables", "debugger")}
-              className={clsx(
-                "text-sm transition hover:text-slate-200",
-                debugTabActive
-                  ? "border-b-2 border-cyan-400 pb-1 font-semibold text-cyan-400"
-                  : "text-slate-400",
-              )}
-            >
-              Debugger
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection("flow", "visualizer")}
-              className={clsx(
-                "text-sm transition hover:text-slate-200",
-                visualizerTabActive
-                  ? "border-b-2 border-cyan-400 pb-1 font-semibold text-cyan-400"
-                  : "text-slate-400",
-              )}
-            >
-              Visualizer
-            </button>
-          </nav>
-        </div>
+          </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {isDesktop ? (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  void openDesktopFile();
-                }}
-                disabled={isManagingDesktopFiles}
-                className="rounded-md border border-white/10 bg-[#1f2229] px-3 py-2 text-sm text-slate-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <label className="hidden items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-slate-300 md:flex">
+              <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Runtime</span>
+              <select
+                value={language}
+                onChange={(event) => handleLanguageChange(event.target.value as SupportedLanguage)}
+                className="bg-transparent text-sm text-slate-100 outline-none"
               >
-                Open
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void saveDesktopFile();
-                }}
-                disabled={isManagingDesktopFiles}
-                className="rounded-md border border-white/10 bg-[#1f2229] px-3 py-2 text-sm text-slate-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isManagingDesktopFiles ? "Working..." : "Save File"}
-              </button>
-            </>
-          ) : null}
+                {Object.entries(languageLabels).map(([value, label]) => (
+                  <option key={value} value={value} className="bg-slate-950 text-slate-100">
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label className="hidden items-center gap-2 rounded-md border border-white/10 bg-[#1d2026] px-3 py-1.5 text-sm text-slate-200 md:flex">
-            <span className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.18em] text-cyan-300">
-              {languageRunLabels[language]}
-            </span>
-            <select
-              value={language}
-              onChange={(event) =>
-                handleLanguageChange(event.target.value as SupportedLanguage)
-              }
-              className="bg-transparent text-sm text-slate-200 outline-none"
-            >
-              {Object.entries(languageLabels).map(([value, label]) => (
-                <option key={value} value={value} className="bg-slate-900">
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button
-            type="button"
-            onClick={() => {
-              void saveCode();
-            }}
-            disabled={isSaving}
-            className="rounded-md border border-white/10 bg-[#272a31] px-4 py-2 text-sm text-slate-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSaving ? "Saving..." : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void runCode();
-            }}
-            disabled={isExecuting}
-            className="flex items-center gap-2 rounded-md bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-65"
-          >
-            <span className="material-symbols-outlined text-sm">play_arrow</span>
-            {isExecuting ? "Running..." : "Run"}
-          </button>
-
-          <div className="ml-1 hidden items-center gap-2 border-l border-white/10 pl-3 sm:flex">
             <button
               type="button"
               onClick={() => {
-                setFocusMode((current) => !current);
-                setNotice({
-                  tone: "success",
-                  message:
-                    "Focus mode dims secondary panels so beginners can concentrate on the current step.",
-                });
+                void saveCode();
               }}
-              className={clsx(
-                "rounded-md p-2 text-slate-400 transition hover:bg-white/5 hover:text-slate-200",
-                focusMode ? "bg-cyan-500/10 text-cyan-300" : "",
-              )}
-              aria-label="Toggle focus mode"
-              title="Toggle focus mode"
+              disabled={isSaving}
+              className="cs-button h-10 rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span className="material-symbols-outlined text-[20px]">settings</span>
+              {isSaving ? "Saving..." : "Save"}
             </button>
             <button
               type="button"
-              onClick={() => scrollToSection("guide", "explorer")}
-              className="rounded-md p-2 text-slate-400 transition hover:bg-white/5 hover:text-slate-200"
-              aria-label="Workbench help"
-              title="Workbench help"
+              onClick={() => {
+                void runCode();
+              }}
+              disabled={isExecuting}
+              className="cs-button cs-button-primary h-10 rounded-xl px-4 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span className="material-symbols-outlined text-[20px]">help_outline</span>
+              <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+              {isExecuting ? "Running..." : "Run"}
             </button>
             <button
               type="button"
               onClick={() => scrollToSection("account", "explorer")}
-              className="ml-1 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-gradient-to-br from-cyan-500/35 to-indigo-500/35 text-xs font-semibold text-white"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/[0.03] text-sm font-semibold text-white transition hover:border-white/15"
             >
-              {user?.email?.slice(0, 1).toUpperCase() ?? "G"}
+              {accountInitial}
             </button>
           </div>
         </div>
       </header>
 
-      {isDesktop ? (
-        <div className="fixed inset-x-0 top-16 z-40 flex min-h-10 items-center justify-between border-b border-white/10 bg-[#10141c]/90 px-4 py-2 text-xs text-slate-400 backdrop-blur md:px-6">
-          <div className="min-w-0">
-            <span className="font-mono uppercase tracking-[0.2em] text-slate-500">
-              Workspace
-            </span>
-            <span className="ml-3 truncate text-slate-200">
-              {desktopFilePath ?? "Unsaved local file"}
-            </span>
-          </div>
-          <div className="hidden items-center gap-2 md:flex">
-            {recentFiles.slice(0, 3).map((entry) => (
-              <button
-                key={entry.filePath}
-                type="button"
-                onClick={() => {
-                  void openDesktopFile(entry.filePath);
-                }}
-                className="rounded-full border border-white/10 px-3 py-1 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
-              >
-                {entry.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <div className="mx-auto max-w-[1900px] px-3 pb-32 pt-4 sm:px-4 lg:px-6">
+        <div className="grid gap-4 xl:grid-cols-[auto,minmax(0,1fr),clamp(22rem,26vw,29rem)]">
+          <aside
+            className={clsx(
+              "cs-panel cs-panel-strong flex h-fit flex-row gap-2 p-2 xl:min-h-[calc(100vh-11rem)] xl:flex-col xl:justify-between",
+              isSidebarCollapsed ? "xl:w-[76px]" : "xl:w-[210px]",
+            )}
+          >
+            <div className="flex min-w-0 flex-1 flex-row gap-2 xl:flex-col">
+              {railItems.map((item) => {
+                const isActive = activeRailSection === item.section;
 
-      <div className={clsx("flex", isDesktop ? "pt-[6.5rem]" : "pt-16")}>
-        <nav
-          className={clsx(
-            "fixed left-0 hidden w-16 flex-col items-center gap-5 border-r border-white/10 bg-[#0b0e14] py-4 md:flex",
-            isDesktop ? "top-[6.5rem] h-[calc(100vh-104px)]" : "top-16 h-[calc(100vh-64px)]",
-          )}
-        >
-          {sideRailIcons.map((icon, index) => {
-            const actions: Array<{
-              icon: (typeof sideRailIcons)[number];
-              section: SectionKey;
-              tab: WorkspaceTab;
-              label: string;
-            }> = [
-              { icon: "folder", section: "library", tab: "explorer", label: "Saved snippets" },
-              { icon: "search", section: "guide", tab: "explorer", label: "Beginner guide" },
-              { icon: "account_tree", section: "flow", tab: "visualizer", label: "Execution story" },
-              { icon: "extension", section: "variables", tab: "debugger", label: "Variable inspector" },
-            ];
-            const action = actions[index];
-            const isActive = activeRailSection === action.section;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => scrollToSection(item.section, item.tab)}
+                    className={clsx(
+                      "flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition",
+                      isActive
+                        ? "bg-[#111d31] text-white"
+                        : "text-slate-400 hover:bg-white/[0.03] hover:text-slate-200",
+                      isSidebarCollapsed ? "justify-center xl:px-0" : "",
+                    )}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                    {!isSidebarCollapsed ? <span className="truncate">{item.label}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
 
-            return (
-              <button
-                key={icon}
-                type="button"
-                onClick={() => scrollToSection(action.section, action.tab)}
-                className={clsx(
-                  "relative flex h-12 w-12 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white/5 hover:text-slate-200",
-                  isActive ? "bg-white/5 text-cyan-400" : "",
-                )}
-                aria-label={action.label}
-                title={action.label}
-              >
-                {isActive ? (
-                  <span className="absolute inset-y-0 left-0 w-[2px] rounded-full bg-cyan-400" />
+            {!isSidebarCollapsed ? (
+              <div className="hidden border-t border-white/8 pt-3 xl:block">
+                <div className="px-1">
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Workspace</div>
+                  <div className="mt-2 text-sm text-slate-200">{runStateLabel}</div>
+                  <div className="mt-1 text-xs leading-5 text-slate-500">
+                    {desktopFileName ?? languageFiles[language]}
+                  </div>
+                </div>
+                {isDesktop ? (
+                  <div className="mt-3 space-y-2">
+                    <button type="button" onClick={createNewDesktopFile} className="cs-button w-full justify-start rounded-xl px-3">
+                      New file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void openDesktopFile();
+                      }}
+                      disabled={isManagingDesktopFiles}
+                      className="cs-button w-full justify-start rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Open file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void saveDesktopFile();
+                      }}
+                      disabled={isManagingDesktopFiles}
+                      className="cs-button w-full justify-start rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Save file
+                    </button>
+                  </div>
                 ) : null}
-                <span className="material-symbols-outlined text-[22px]">{icon}</span>
+              </div>
+            ) : null}
+          </aside>
+
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.24, ease: "easeOut" }}
+            className="cs-panel cs-panel-strong flex min-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-[1.9rem] shadow-[0_24px_70px_rgba(2,10,22,0.38)]"
+          >
+            <div className="border-b border-white/8 px-4 py-4 sm:px-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 text-xs uppercase tracking-[0.18em] text-slate-500">
+                    {desktopFileName ?? languageFiles[language]}
+                  </div>
+                  <input
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="Snippet title"
+                    className="w-full border-none bg-transparent text-[clamp(1.15rem,1rem+0.4vw,1.55rem)] font-semibold tracking-[-0.02em] text-white outline-none placeholder:text-slate-500"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={focusEditorForPaste} className="cs-button rounded-xl px-3">
+                    Focus editor
+                  </button>
+                  <button type="button" onClick={loadStarterExample} className="cs-button rounded-xl px-3">
+                    Example
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFocusMode((current) => !current);
+                      setNotice({
+                        tone: "success",
+                        message: focusMode
+                          ? "Balanced layout restored."
+                          : "Focus mode enabled. The editor stays dominant while the teaching panels soften.",
+                      });
+                    }}
+                    className={clsx(
+                      "cs-button rounded-xl px-3",
+                      focusMode ? "border-cyan-300/25 bg-cyan-300/10 text-cyan-100" : "",
+                    )}
+                  >
+                    {focusMode ? "Focus mode" : "Balanced mode"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 border-b border-white/8 px-4 py-3 text-sm sm:px-5">
+              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-slate-300">
+                {languageRunLabels[language]}
+              </span>
+              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-slate-400">
+                {runStateDetail}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowProgramInput((current) => !current)}
+                className="ml-auto rounded-full border border-white/8 px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-slate-400 transition hover:border-white/15 hover:text-slate-200"
+              >
+                {showProgramInput ? "Hide input" : "Show input"}
               </button>
-            );
-          })}
-        </nav>
+            </div>
 
-        <div
-          className={clsx(
-            "flex flex-1 flex-col md:ml-16",
-            isDesktop ? "min-h-[calc(100vh-104px)]" : "min-h-[calc(100vh-64px)]",
-          )}
-        >
-          <div className="flex flex-1 flex-col overflow-hidden pb-28 xl:flex-row">
-            <motion.section
-              initial={{ opacity: 0, x: -16 }}
-              animate={{ opacity: 1, x: 0 }}
-              className={clsx(
-                "flex min-h-[420px] flex-col border-b border-white/10 bg-[#10131a] xl:w-[42%] xl:border-b-0 xl:border-r",
-                focusMode ? "xl:w-[40%]" : "",
-              )}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#191c22] px-4 py-3">
-                <div className="flex min-w-[220px] flex-1 items-center gap-2">
-                  <span className="material-symbols-outlined text-sm text-slate-500">
-                    description
-                  </span>
-                  <span className="font-['JetBrains_Mono'] text-sm text-slate-300">
-                    {languageFiles[language]}
-                  </span>
-                </div>
-                <input
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Snippet title"
-                  className="min-w-[180px] flex-1 border-none bg-transparent text-right text-sm font-medium text-slate-200 outline-none placeholder:text-slate-500"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-[#151921] px-4 py-3">
-                <button
-                  type="button"
-                  onClick={focusEditorForPaste}
-                  className="rounded-md border border-white/10 bg-[#1d2026] px-3 py-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-200 transition hover:border-cyan-400/40 hover:text-cyan-200"
-                >
-                  Paste Code
-                </button>
-                <button
-                  type="button"
-                  onClick={loadStarterExample}
-                  className="rounded-md border border-white/10 bg-[#1d2026] px-3 py-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-200 transition hover:border-cyan-400/40 hover:text-cyan-200"
-                >
-                  Load Example
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollToSection("guide", "explorer")}
-                  className="rounded-md border border-white/10 bg-[#1d2026] px-3 py-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-200 transition hover:border-cyan-400/40 hover:text-cyan-200"
-                >
-                  Learn This Screen
-                </button>
-                <div className="ml-auto text-xs text-slate-500">
-                  Paste code, press <span className="text-slate-300">Run</span>, then use the footer to step through it.
-                </div>
-              </div>
-
-              <div className="border-b border-white/10 bg-[#11161e] px-4 py-3">
+            {showProgramInput ? (
+              <div className="border-b border-white/8 px-4 py-4 sm:px-5">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                      Program Input
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      Add stdin here for programs that use `cin`, `scanf`, `input()`, or `Scanner`.
-                    </div>
+                  <div className="text-sm text-slate-400">
+                    Add stdin for programs that use `input()`, `scanf`, `cin`, or `Scanner`.
                   </div>
                   <button
                     type="button"
                     onClick={() => setProgramInput("")}
-                    className="rounded-md border border-white/10 bg-[#1d2026] px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-slate-300 transition hover:border-cyan-400/35 hover:text-cyan-200"
+                    className="text-xs uppercase tracking-[0.16em] text-slate-500 transition hover:text-slate-300"
                   >
-                    Clear Input
+                    Clear
                   </button>
                 </div>
                 <textarea
                   value={programInput}
                   onChange={(event) => setProgramInput(event.target.value)}
                   placeholder={"Example:\n5\n10 20 30 40 50"}
-                  className="h-24 w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 font-['JetBrains_Mono'] text-sm text-slate-200 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/35"
+                  className="cs-input h-24 resize-y rounded-xl font-mono text-sm"
                 />
               </div>
+            ) : null}
 
-              <div className="flex-1 overflow-hidden">
-                <Editor
-                  height="100%"
-                  defaultLanguage={monacoLanguageMap[language]}
-                  language={monacoLanguageMap[language]}
-                  value={code}
-                  onChange={(value) => setCode(value ?? "")}
-                  onMount={handleEditorMount}
-                  theme="vs-dark"
-                  options={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 14,
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    lineNumbersMinChars: 3,
-                    padding: { top: 16, bottom: 24 },
-                    roundedSelection: false,
-                    wordWrap: "on",
-                    overviewRulerBorder: false,
-                  }}
-                />
-              </div>
-            </motion.section>
+            <div className="flex-1 overflow-hidden">
+              <Editor
+                height="100%"
+                defaultLanguage={monacoLanguageMap[language]}
+                language={monacoLanguageMap[language]}
+                value={code}
+                onChange={(value) => setCode(value ?? "")}
+                onMount={handleEditorMount}
+                theme="codesight-noctis"
+                options={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 15,
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  lineNumbersMinChars: 3,
+                  padding: { top: 18, bottom: 18 },
+                  roundedSelection: false,
+                  wordWrap: "on",
+                  overviewRulerBorder: false,
+                  renderLineHighlight: "gutter",
+                  smoothScrolling: true,
+                }}
+              />
+            </div>
+          </motion.section>
 
-            <motion.section
-              initial={{ opacity: 0, x: 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="workbench-scrollbar flex-1 overflow-y-auto bg-[#10131a] p-4 sm:p-6"
-            >
-              <div className="space-y-6">
-                <section
-                  ref={guideSectionRef}
-                  className="rounded-lg border border-cyan-400/15 bg-[linear-gradient(135deg,rgba(14,18,28,0.95),rgba(20,32,48,0.82))] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="max-w-3xl">
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.18em] text-cyan-300">
-                        Beginner Guide
-                      </div>
-                      <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
-                        Understand code in plain English, one line at a time.
-                      </h1>
-                      <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                        This workbench is tuned for learners: paste code, run it, then follow the current line, the changing variables, and the execution story without needing to decode everything at once.
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-white/10 bg-[#151921] px-4 py-3">
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        Current View
-                      </div>
-                      <div className="mt-2 text-lg font-semibold text-white">
-                        {activeWorkspaceTab}
-                      </div>
-                    </div>
+          <motion.aside
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.24, delay: 0.04, ease: "easeOut" }}
+            className={clsx(
+              insightMode === "history" || insightMode === "settings"
+                ? "cs-panel cs-panel-strong min-h-[28rem] overflow-hidden"
+                : "min-h-[28rem]",
+              focusMode && insightMode !== "settings" ? "opacity-90" : "",
+            )}
+          >
+            {insightMode === "history" || insightMode === "settings" ? (
+              <>
+                <div className="border-b border-white/8 px-4 py-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                    {activeSidebarLabel}
                   </div>
+                  <h2 className="mt-2 text-lg font-semibold text-white">
+                    {insightMode === "history" ? "Saved work" : "Workspace settings"}
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-400">
+                    {insightMode === "history"
+                      ? "Open past snippets and recent runs without leaving the editor."
+                      : "Manage your account and sync preferences."}
+                  </p>
+                </div>
 
-                  <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                    <div className="rounded-lg border border-white/10 bg-[#151921] p-4">
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        Current Line
-                      </div>
-                      <div className="mt-3 font-['JetBrains_Mono'] text-sm text-cyan-200">
-                        {activeStep?.line ? `Line ${activeStep.line}` : "Waiting to run"}
-                      </div>
-                      <p className="mt-3 break-words font-['JetBrains_Mono'] text-sm text-slate-300">
-                        {activeLineCode || "Press Run to highlight the exact line the program is executing."}
-                      </p>
+                <div className="workbench-scrollbar h-[calc(100%-96px)] overflow-y-auto p-4">
+                  {insightMode === "history" ? (
+                <section ref={librarySectionRef} className="space-y-3">
+                  {snippets.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-slate-400">
+                      Sign in and save a snippet to build a reusable history.
                     </div>
-
-                    <div className="rounded-lg border border-white/10 bg-[#151921] p-4">
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        Plain-English Meaning
+                  ) : (
+                    snippets.slice(0, 5).map((snippet) => (
+                      <div
+                        key={snippet.id}
+                        className={clsx(
+                          "rounded-xl border px-4 py-3 transition",
+                          currentSnippetId === snippet.id
+                            ? "border-cyan-300/22 bg-cyan-300/8"
+                            : "border-white/8 bg-white/[0.02] hover:border-white/14",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void loadSnippet(snippet.id);
+                          }}
+                          className="w-full text-left"
+                        >
+                          <div className="truncate text-sm font-medium text-white">{snippet.title}</div>
+                          <div className="mt-1 text-xs text-slate-500">{formatDate(snippet.createdAt)}</div>
+                          <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                            <span>{snippet.language}</span>
+                            <span>•</span>
+                            <span>{snippet.executionCount ?? 0} runs</span>
+                          </div>
+                        </button>
                       </div>
-                      <p className="mt-3 text-sm leading-7 text-slate-300">
-                        {plainEnglishSummary}
-                      </p>
-                    </div>
+                    ))
+                  )}
 
-                    <div className="rounded-lg border border-white/10 bg-[#151921] p-4">
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        What Changed
+                  {historyPreview.length > 0 ? (
+                    <div className="pt-3">
+                      <div className="mb-2 text-xs uppercase tracking-[0.18em] text-slate-500">
+                        Recent output
                       </div>
-                      <p className="mt-3 text-sm leading-7 text-slate-300">
-                        {changedVariableSummary}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                    <div className="rounded-lg border border-white/10 bg-[#151921] p-4">
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        Your Next Three Steps
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                        {beginnerChecklist.map((item, index) => (
-                          <div
-                            key={item}
-                            className="rounded-lg border border-white/5 bg-[#0f131c] p-3"
-                          >
-                            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-300">
-                              Step {index + 1}
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-slate-300">{item}</p>
+                      <div className="space-y-2">
+                        {historyPreview.map((entry) => (
+                          <div key={entry.id} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                            <div className="text-sm text-white">{entry.codeSnippet.title}</div>
+                            <div className="mt-1 text-xs text-slate-500">{formatDate(entry.createdAt)}</div>
+                            <p className="mt-2 max-h-12 overflow-hidden font-mono text-xs leading-5 text-slate-400">
+                              {entry.output || "No console output captured."}
+                            </p>
                           </div>
                         ))}
                       </div>
                     </div>
-
-                    <div className="rounded-lg border border-white/10 bg-[#151921] p-4">
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        Helpful Buttons
+                  ) : null}
+                </section>
+              ) : (
+                <section ref={accountSectionRef} className="space-y-4">
+                  {isDesktop ? (
+                    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Local workspace</div>
+                      <div className="mt-2 text-sm leading-6 text-slate-400">
+                        {desktopFilePath ?? "No local file selected yet."}
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={focusEditorForPaste}
-                          className="rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-cyan-400"
+                          onClick={() => {
+                            void saveDesktopSnippet();
+                          }}
+                          disabled={isManagingDesktopFiles}
+                          className="cs-button rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Focus Editor
+                          Save local snippet
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => scrollToSection("variables", "debugger")}
-                          className="rounded-md border border-white/10 bg-[#1d2026] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-400/40 hover:text-cyan-200"
-                        >
-                          See Variables
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => scrollToSection("flow", "visualizer")}
-                          className="rounded-md border border-white/10 bg-[#1d2026] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-400/40 hover:text-cyan-200"
-                        >
-                          See Execution Story
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section
-                  ref={variablesSectionRef}
-                  className="rounded-lg border border-white/10 bg-[rgba(25,28,34,0.72)] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl"
-                >
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <h2 className="text-xl font-semibold text-[#e1e2eb]">Variables</h2>
-                    <span className="rounded bg-[#1d2026] px-2 py-1 font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.14em] text-slate-400">
-                      Scope: {featuredVariables[0]?.scope ?? "global"}
-                    </span>
-                  </div>
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    {featuredVariables.length === 0 ? (
-                      <div className="rounded border border-white/5 bg-[#272a31] p-4 text-sm text-slate-400 lg:col-span-3">
-                        Run your code to populate the variable inspector.
-                      </div>
-                    ) : (
-                      featuredVariables.map((variable, index) => (
-                        <div
-                          key={variable.id}
-                          className={clsx(
-                            "relative overflow-hidden rounded border p-3",
-                            index === 2 || variable.change !== "unchanged"
-                              ? "border-cyan-400/20 bg-[#272a31]"
-                              : "border-white/5 bg-[#272a31]",
-                          )}
-                        >
-                          {index === 2 || variable.change !== "unchanged" ? (
-                            <div className="absolute inset-0 bg-cyan-400/5" />
-                          ) : null}
-                          <div className="relative z-10">
-                            <div className="mb-1 font-['JetBrains_Mono'] text-sm text-slate-400">
-                              {variable.name}
-                            </div>
-                            <div className="break-words font-['JetBrains_Mono'] text-sm text-[#e1e2eb]">
-                              {variable.currentValue}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </section>
-
-                <section
-                  ref={memorySectionRef}
-                  className="rounded-lg border border-white/10 bg-[rgba(25,28,34,0.72)] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl"
-                >
-                  <h2 className="mb-4 text-xl font-semibold text-[#e1e2eb]">Memory Stack</h2>
-                  <div className="flex min-h-[280px] flex-col gap-6 xl:flex-row xl:items-end xl:justify-center">
-                    <div className="flex flex-1 flex-col gap-2">
-                      {stackFrames.length === 0 ? (
-                        <div className="rounded border border-white/10 bg-[#1d2026] p-4 text-sm text-slate-400">
-                          No call frames yet. Execute the current file to build the stack.
-                        </div>
-                      ) : (
-                        <>
-                          {stackFrames.map((frame, index) => {
-                            const isActive = index === 0;
-
-                            return (
-                              <div
-                                key={`${frame.line}-${index}`}
-                                className={clsx(
-                                  "rounded p-3 text-center font-['JetBrains_Mono'] text-sm",
-                                  isActive
-                                    ? "relative border border-cyan-400/50 bg-cyan-400/10 text-cyan-300 shadow-[0_0_15px_rgba(0,209,255,0.22)]"
-                                    : "border border-white/10 bg-[#1d2026] text-slate-400",
-                                  index === 1 ? "opacity-80" : "",
-                                  index >= 2 ? "opacity-55" : "",
-                                )}
-                              >
-                                {`line ${frame.line}()`}
-                              </div>
-                            );
-                          })}
-                          <div className="rounded border border-white/10 bg-[#1d2026] p-3 text-center font-['JetBrains_Mono'] text-sm text-[#e1e2eb]">
-                            __main__
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="mx-auto flex h-32 w-32 shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-[#272a31]">
-                      <div className="text-center">
-                        <span className="mb-1 block font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Returning
-                        </span>
-                        <span className="font-['JetBrains_Mono'] text-2xl text-cyan-300">
-                          {featuredVariables[0]?.currentValue ?? summarizeOutput(consoleOutput)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 rounded-lg border border-white/10 bg-[#151921] p-4">
-                      <div className="mb-2 font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        Heap Preview
-                      </div>
-                      {primaryArray ? (
-                        <div className="space-y-3">
-                          <div className="font-['JetBrains_Mono'] text-sm text-slate-300">
-                            {primaryArray.name}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {primaryArray.items.slice(0, 10).map((item) => (
-                              <div
-                                key={item.motionId}
-                                className={clsx(
-                                  "min-w-[44px] rounded border px-3 py-2 text-center font-['JetBrains_Mono'] text-sm",
-                                  item.changed
-                                    ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
-                                    : "border-white/10 bg-[#1d2026] text-slate-300",
-                                )}
-                              >
-                                {item.label}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-400">
-                          Arrays and objects will appear here when the current step exposes them.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </section>
-
-                <section
-                  ref={flowSectionRef}
-                  className="rounded-lg border border-white/5 bg-[#191c22] p-4"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded bg-cyan-400/20">
-                      <span className="material-symbols-outlined text-sm text-cyan-300">
-                        smart_toy
-                      </span>
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="mb-1 text-sm font-semibold text-[#e1e2eb]">
-                        {trace.steps.length === 0
-                          ? "Workbench ready"
-                          : `Step ${currentStepIndex + 1}: ${primaryStatus}`}
-                      </h3>
-                      <p className="text-sm leading-6 text-slate-400">{secondaryStatus}</p>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-lg border border-white/10 bg-[rgba(25,28,34,0.72)] p-5 backdrop-blur-xl">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        Execution Story
-                      </div>
-                      <div className="mt-1 text-xl font-semibold text-[#e1e2eb]">
-                        What happened before, during, and after this step
-                      </div>
-                    </div>
-                    <span className="rounded bg-[#1d2026] px-2 py-1 text-xs text-slate-400">
-                      {trace.steps.length === 0 ? "Run required" : `${flowWindow.length} nearby steps`}
-                    </span>
-                  </div>
-
-                  {flowWindow.length === 0 ? (
-                    <div className="rounded-lg border border-white/5 bg-[#151921] p-4 text-sm text-slate-400">
-                      After you run the code, this area becomes a simple story of the nearby steps so beginners can follow the flow without scanning the full file.
-                    </div>
-                  ) : (
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      {flowWindow.map((step) => {
-                        const isActiveStep = step === activeStep;
-
-                        return (
-                          <button
-                            key={`${step.line}-${step.description}-${step.explanation ?? ""}`}
-                            type="button"
-                            onClick={() => {
-                              const nextIndex = trace.steps.indexOf(step);
-                              if (nextIndex >= 0) {
-                                stopPlayback();
-                                setActiveWorkspaceTab("visualizer");
-                                setActiveRailSection("flow");
-                                setCurrentStepIndex(nextIndex);
-                              }
-                            }}
-                            className={clsx(
-                              "rounded-lg border p-4 text-left transition",
-                              isActiveStep
-                                ? "border-cyan-400/40 bg-cyan-400/10"
-                                : "border-white/5 bg-[#151921] hover:border-white/15",
-                            )}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="font-['JetBrains_Mono'] text-xs uppercase tracking-[0.14em] text-slate-400">
-                                Line {step.line}
-                              </span>
-                              {isActiveStep ? (
-                                <span className="rounded bg-cyan-400/15 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-cyan-200">
-                                  Current
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="mt-3 text-sm font-semibold text-[#e1e2eb]">
-                              {step.description}
-                            </p>
-                            <p className="mt-2 text-sm leading-6 text-slate-400">
-                              {step.explanation ?? "This step is part of the execution story."}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-
-                <section className="rounded-lg border border-white/10 bg-[rgba(25,28,34,0.72)] p-5 backdrop-blur-xl">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                        Array Motion
-                      </div>
-                      <div className="mt-1 text-xl font-semibold text-[#e1e2eb]">
-                        Watch elements move as the algorithm changes them
-                      </div>
-                    </div>
-                    <span className="rounded bg-[#1d2026] px-2 py-1 text-xs text-slate-400">
-                      {visualizationModel.arrays.length === 0
-                        ? "No arrays yet"
-                        : `${visualizationModel.arrays.length} tracked`}
-                    </span>
-                  </div>
-                  <p className="mb-4 text-sm leading-6 text-slate-400">
-                    When an array changes, the tiles below move to their new positions. This makes reversing, swapping, and pointer-based algorithms much easier to feel.
-                  </p>
-                  <ArrayVisualizer
-                    arrays={visualizationModel.arrays}
-                    focusMode={focusMode}
-                    themeMode="dark"
-                  />
-                </section>
-
-                <div className="grid gap-6 2xl:grid-cols-[0.9fr_1.1fr_0.9fr]">
-                  <section className="rounded-lg border border-white/10 bg-[rgba(25,28,34,0.72)] p-5 backdrop-blur-xl">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Console
-                        </div>
-                        <div className="mt-1 text-lg font-semibold text-[#e1e2eb]">
-                          Output Stream
-                        </div>
-                      </div>
-                      <span className="rounded bg-[#1d2026] px-2 py-1 text-xs text-slate-400">
-                        {consoleOutput.length} line{consoleOutput.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                    <div className="rounded-lg border border-white/5 bg-[#0b0e14] p-3 font-['JetBrains_Mono'] text-sm text-slate-300">
-                      {trace.error ? (
-                        <p className="whitespace-pre-wrap break-words text-rose-300">
-                          {trace.error}
-                        </p>
-                      ) : consoleOutput.length === 0 ? (
-                        <p className="text-slate-500">No console output yet.</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {consoleOutput.slice(-8).map((line, index) => (
-                            <p key={`${line}-${index}`} className="break-all">
-                              {line}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </section>
-
-                  <section
-                    ref={librarySectionRef}
-                    className="rounded-lg border border-white/10 bg-[rgba(25,28,34,0.72)] p-5 backdrop-blur-xl"
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          Saved Snippets
-                        </div>
-                        <div className="mt-1 text-lg font-semibold text-[#e1e2eb]">
-                          Workspace Library
-                        </div>
-                      </div>
-                      <span className="rounded bg-[#1d2026] px-2 py-1 text-xs text-slate-400">
-                        {isRefreshing ? "Syncing..." : `${snippets.length} total`}
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      {snippets.length === 0 ? (
-                        <p className="rounded border border-white/5 bg-[#151921] px-4 py-5 text-sm text-slate-400">
-                          Sign in and save a snippet to build your personal library.
-                        </p>
-                      ) : (
-                        snippets.slice(0, 5).map((snippet) => (
-                          <div
-                            key={snippet.id}
-                            className={clsx(
-                              "rounded border px-4 py-3 transition",
-                              currentSnippetId === snippet.id
-                                ? "border-cyan-400/35 bg-cyan-400/10"
-                                : "border-white/5 bg-[#151921] hover:border-white/15",
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void loadSnippet(snippet.id);
-                                }}
-                                className="min-w-0 flex-1 text-left"
-                              >
-                                <div className="truncate text-sm font-semibold text-[#e1e2eb]">
-                                  {snippet.title}
-                                </div>
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {formatDate(snippet.createdAt)}
-                                </div>
-                                <div className="mt-3 flex flex-wrap items-center gap-2">
-                                  <span className="rounded bg-[#1d2026] px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300">
-                                    {snippet.language}
-                                  </span>
-                                  <span className="rounded bg-cyan-400/10 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-cyan-200">
-                                    {snippet.executionCount ?? 0} runs
-                                  </span>
-                                </div>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void deleteSnippet(snippet.id, snippet.title);
-                                }}
-                                className="rounded border border-white/10 bg-[#10141d] px-3 py-2 text-[11px] uppercase tracking-[0.12em] text-slate-400 transition hover:border-rose-400/35 hover:text-rose-200"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </section>
-
-                  <section
-                    ref={accountSectionRef}
-                    className="rounded-lg border border-white/10 bg-[rgba(25,28,34,0.72)] p-5 backdrop-blur-xl"
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          {user ? "Account" : "Sign In"}
-                        </div>
-                        <div className="mt-1 text-lg font-semibold text-[#e1e2eb]">
-                          {user ? user.email : "Save your workbench state"}
-                        </div>
-                      </div>
-                      {user ? (
                         <button
                           type="button"
                           onClick={() => {
-                            void handleLogout();
+                            void openLocalDesktopSnippet();
                           }}
-                          className="rounded border border-white/10 bg-[#151921] px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5"
+                          disabled={isManagingDesktopFiles}
+                          className="cs-button rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Log out
+                          Open local snippet
                         </button>
-                      ) : (
-                        <div className="flex rounded bg-[#151921] p-1">
-                          {(["signup", "login"] as const).map((mode) => (
-                            <button
-                              key={mode}
-                              type="button"
-                              onClick={() => setAuthMode(mode)}
-                              className={clsx(
-                                "rounded px-3 py-1.5 text-xs uppercase tracking-[0.12em] transition",
-                                authMode === mode
-                                  ? "bg-cyan-500 text-white"
-                                  : "text-slate-400 hover:text-slate-200",
-                              )}
-                            >
-                              {mode}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      </div>
                     </div>
+                  ) : null}
 
-                    {user ? (
-                      <div className="space-y-3">
-                        <p className="text-sm text-slate-400">
-                          Snippets and run history will stay attached to your account.
-                        </p>
-                        <div className="rounded border border-white/5 bg-[#151921] p-4">
-                          <div className="font-['Space_Grotesk'] text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                            Recent History
-                          </div>
-                          <div className="mt-3 space-y-3">
-                            {history.length === 0 ? (
-                              <p className="text-sm text-slate-400">
-                                Saved run history appears here after you execute a saved snippet.
-                              </p>
-                            ) : (
-                              history.slice(0, 3).map((entry) => (
-                                <div key={entry.id} className="rounded border border-white/5 bg-[#0f131c] p-3">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="text-sm font-semibold text-[#e1e2eb]">
-                                      {entry.codeSnippet.title}
-                                    </div>
-                                    <div className="text-xs text-slate-500">
-                                      {formatDate(entry.createdAt)}
-                                    </div>
-                                  </div>
-                                  <p className="mt-2 max-h-10 overflow-hidden font-['JetBrains_Mono'] text-xs leading-5 text-slate-400">
-                                    {entry.output || "No console output captured."}
-                                  </p>
-                                </div>
-                              ))
+                  {user ? (
+                    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
+                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Signed in</div>
+                      <div className="mt-2 text-sm text-white">{user.email}</div>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        Snippets and execution history stay attached to this account.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleLogout();
+                        }}
+                        className="cs-button mt-4 rounded-xl px-3"
+                      >
+                        Log out
+                      </button>
+                    </div>
+                  ) : isAuthLoading ? (
+                    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4 text-sm text-slate-400">
+                      Restoring your session...
+                    </div>
+                  ) : (
+                    <form onSubmit={handleAuthSubmit} className="space-y-3 rounded-xl border border-white/8 bg-white/[0.02] p-4">
+                      <div className="flex rounded-full border border-white/8 bg-[#0a1627] p-1">
+                        {(["signup", "login"] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setAuthMode(mode)}
+                            className={clsx(
+                              "flex-1 rounded-full px-3 py-2 text-xs uppercase tracking-[0.16em] transition",
+                              authMode === mode
+                                ? "bg-white/[0.08] text-white"
+                                : "text-slate-500 hover:text-slate-300",
                             )}
-                          </div>
-                        </div>
+                          >
+                            {mode}
+                          </button>
+                        ))}
                       </div>
-                    ) : isAuthLoading ? (
-                      <div className="rounded border border-white/5 bg-[#151921] p-4 text-sm text-slate-400">
-                        Restoring your Supabase session...
-                      </div>
-                    ) : (
-                      <form onSubmit={handleAuthSubmit} className="space-y-3">
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(event) => setEmail(event.target.value)}
-                          placeholder="Email address"
-                          className="w-full rounded border border-white/10 bg-[#151921] px-3 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40"
-                          required
-                        />
-                        <input
-                          type="password"
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                          placeholder="Password"
-                          className="w-full rounded border border-white/10 bg-[#151921] px-3 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40"
-                          required
-                          minLength={6}
-                        />
-                        <button
-                          type="submit"
-                          disabled={isAuthenticating || isAuthLoading}
-                          className="w-full rounded bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          {isAuthLoading
-                            ? "Restoring session..."
-                            : isAuthenticating
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        placeholder="Email address"
+                        className="cs-input rounded-xl"
+                        required
+                      />
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        placeholder="Password"
+                        className="cs-input rounded-xl"
+                        required
+                        minLength={6}
+                      />
+                      <button
+                        type="submit"
+                        disabled={isAuthenticating || isAuthLoading}
+                        className="cs-button cs-button-primary w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {isAuthLoading
+                          ? "Restoring session..."
+                          : isAuthenticating
                             ? "Working..."
                             : authMode === "signup"
                               ? "Create account"
                               : "Log in"}
-                        </button>
-                        {pendingConfirmationEmail ? (
-                          <div className="rounded border border-amber-400/20 bg-amber-400/10 px-3 py-3 text-sm text-amber-100">
-                            <p>
-                              Confirm <span className="font-semibold">{pendingConfirmationEmail}</span> from your inbox before logging in and saving snippets.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void handleResendConfirmation();
-                              }}
-                              className="mt-3 rounded border border-amber-300/25 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-50 transition hover:bg-white/10"
-                            >
-                              Resend confirmation
-                            </button>
-                          </div>
-                        ) : null}
-                      </form>
-                    )}
-                  </section>
+                      </button>
+                      {pendingConfirmationEmail ? (
+                        <div className="rounded-xl border border-amber-300/16 bg-amber-300/8 p-3 text-sm text-amber-100">
+                          Confirm {pendingConfirmationEmail} from your inbox before saving snippets.
+                        </div>
+                      ) : null}
+                    </form>
+                  )}
+                </section>
+              )}
                 </div>
-
-              </div>
-            </motion.section>
-          </div>
+              </>
+            ) : (
+              <ExecutionVisualizer
+                step={activeStep}
+                previousStep={previousStep}
+                steps={trace.steps}
+                currentStepIndex={currentStepIndex}
+                activeLineCode={activeLineCode}
+                plainEnglishSummary={plainEnglishSummary}
+                consoleOutput={consoleOutput}
+                error={trace.error || undefined}
+                onStepSelect={(nextIndex) => {
+                  stopPlayback();
+                  setActiveWorkspaceTab("visualizer");
+                  setActiveRailSection("flow");
+                  setCurrentStepIndex(nextIndex);
+                }}
+              />
+            )}
+          </motion.aside>
         </div>
       </div>
 
-      <footer className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#151921]/90 px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.3)] backdrop-blur-xl sm:px-8">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-4 xl:flex-row xl:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
-            <span className="whitespace-nowrap font-['JetBrains_Mono'] text-xs text-slate-500">
-              Step {trace.steps.length === 0 ? 0 : currentStepIndex + 1}/{trace.steps.length}
-            </span>
-            <div
-              onClick={handleTimelineClick}
-              className="relative h-2 flex-1 cursor-pointer rounded-full bg-[#32353c]"
-            >
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(0,209,255,0.5)]"
-                style={{ width: `${timelineProgress}%` }}
-              />
-              {trace.steps.length > 0 ? (
-                <div
-                  className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-cyan-400 bg-white"
-                  style={{ left: `calc(${timelineProgress}% - 6px)` }}
-                />
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 sm:gap-6">
-            <button
-              type="button"
-              onClick={handlePrevious}
-              disabled={currentStepIndex <= 0}
-              className="flex items-center gap-2 rounded-lg p-2 text-slate-400 transition hover:bg-cyan-500/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <span className="material-symbols-outlined text-[26px]">skip_previous</span>
-              <span className="text-[11px] uppercase tracking-[0.16em]">Back</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveWorkspaceTab("visualizer");
-                setActiveRailSection("flow");
-                togglePlayback();
-              }}
-              disabled={trace.steps.length === 0}
-              className="flex items-center gap-2 rounded-lg p-2 text-cyan-400 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <span className="material-symbols-outlined text-[32px]">
-                {isPlaying ? "pause_circle" : "play_circle"}
-              </span>
-              <span className="text-[11px] uppercase tracking-[0.16em]">
-                {isPlaying ? "Pause" : "Play"}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={
-                trace.steps.length === 0 || currentStepIndex >= trace.steps.length - 1
-              }
-              className="flex items-center gap-2 rounded-lg p-2 text-slate-400 transition hover:bg-cyan-500/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <span className="material-symbols-outlined text-[26px]">skip_next</span>
-              <span className="text-[11px] uppercase tracking-[0.16em]">Next</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="flex items-center gap-2 rounded-lg p-2 text-slate-400 transition hover:bg-cyan-500/10 hover:text-slate-200"
-            >
-              <span className="material-symbols-outlined text-[24px]">restart_alt</span>
-              <span className="text-[11px] uppercase tracking-[0.16em]">Reset</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              className="flex items-center gap-2 rounded-lg p-2 text-slate-400 transition hover:bg-cyan-500/10 hover:text-slate-200"
-            >
-              <span className="material-symbols-outlined text-[24px]">ios_share</span>
-              <span className="text-[11px] uppercase tracking-[0.16em]">Export</span>
-            </button>
-            <label className="ml-auto flex items-center gap-2 text-xs text-slate-400">
-              <span className="font-['Space_Grotesk'] uppercase tracking-[0.12em]">
-                Speed
-              </span>
-              <input
-                type="range"
-                min="0.5"
-                max="2.5"
-                step="0.25"
-                value={playbackRate}
-                onChange={(event) => setPlaybackRate(Number(event.target.value))}
-                className="w-24 accent-cyan-400"
-              />
-              <span className="w-10 text-right font-['JetBrains_Mono'] text-slate-300">
-                {playbackRate.toFixed(2)}x
-              </span>
-            </label>
-          </div>
-        </div>
-      </footer>
+      <PlaybackDock
+        stepCount={trace.steps.length}
+        currentStepIndex={currentStepIndex}
+        activeLine={activeStep?.line}
+        isPlaying={isPlaying}
+        playbackRate={playbackRate}
+        onPlaybackRateChange={setPlaybackRate}
+        onStepScrub={(nextIndex) => {
+          stopPlayback();
+          setActiveWorkspaceTab("visualizer");
+          setActiveRailSection("flow");
+          setCurrentStepIndex(nextIndex);
+        }}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+        onTogglePlayback={() => {
+          setActiveWorkspaceTab("visualizer");
+          setActiveRailSection("flow");
+          togglePlayback();
+        }}
+        onReset={handleReset}
+      />
       <ToastViewport notice={notice} onDismiss={() => setNotice(null)} />
     </main>
   );

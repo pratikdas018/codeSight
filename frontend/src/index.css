@@ -1,14 +1,25 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&family=Material+Symbols+Outlined:FILL@0..1&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:FILL@0..1&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color: #e1e2eb;
-  font-family: "Inter", "Segoe UI", sans-serif;
-  background-color: #0b0e14;
+  color: #e8f4ff;
   color-scheme: dark;
+  font-family: "Inter", "Geist", "SF Pro Display", "Segoe UI", sans-serif;
+  background-color: #07111f;
+  --cs-bg: #07111f;
+  --cs-bg-elevated: rgba(9, 19, 34, 0.88);
+  --cs-bg-panel: rgba(15, 27, 46, 0.72);
+  --cs-border: rgba(130, 199, 255, 0.16);
+  --cs-border-strong: rgba(105, 232, 255, 0.18);
+  --cs-text: #e8f4ff;
+  --cs-text-muted: #8ca2bb;
+  --cs-glow: #63e7ff;
+  --cs-glow-strong: #2ba8ff;
+  --cs-mint: #59f7cb;
+  --cs-shadow: 0 10px 30px rgba(3, 10, 24, 0.22);
 }
 
 * {
@@ -21,13 +32,41 @@ body,
   min-height: 100%;
 }
 
+html {
+  background: var(--cs-bg);
+}
+
 body {
   margin: 0;
   min-width: 320px;
   background:
-    radial-gradient(circle at top left, rgba(76, 214, 255, 0.08), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(95, 82, 255, 0.08), transparent 26%),
-    #0b0e14;
+    radial-gradient(circle at top left, rgba(64, 200, 255, 0.08), transparent 28%),
+    linear-gradient(180deg, #08111e 0%, #07111f 56%, #09131f 100%);
+  color: var(--cs-text);
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+
+body::before {
+  opacity: 0.16;
+  background-image:
+    linear-gradient(to right, rgba(124, 154, 186, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(124, 154, 186, 0.08) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black 45%, transparent 92%);
+}
+
+body::after {
+  background: radial-gradient(circle at 20% 22%, rgba(99, 231, 255, 0.05), transparent 18%);
+  filter: blur(18px);
 }
 
 button,
@@ -39,6 +78,11 @@ textarea {
 
 button {
   cursor: pointer;
+}
+
+::selection {
+  background: rgba(99, 231, 255, 0.22);
+  color: #f5fbff;
 }
 
 .material-symbols-outlined {
@@ -58,11 +102,12 @@ button {
 
 .workbench-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(133, 147, 153, 0.4) transparent;
+  scrollbar-color: rgba(148, 179, 214, 0.32) transparent;
 }
 
 .workbench-scrollbar::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 
 .workbench-scrollbar::-webkit-scrollbar-track {
@@ -72,47 +117,107 @@ button {
 .workbench-scrollbar::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(133, 147, 153, 0.28);
+  background: rgba(148, 179, 214, 0.25);
   background-clip: padding-box;
 }
 
 .current-execution-line {
-  background: linear-gradient(90deg, rgba(0, 209, 255, 0.14), rgba(76, 214, 255, 0.04));
-  border-left: 2px solid #00d1ff;
+  background: linear-gradient(90deg, rgba(99, 231, 255, 0.16), rgba(43, 168, 255, 0.05));
+  border-left: 2px solid var(--cs-glow);
 }
 
 .current-execution-gutter {
-  border-left: 3px solid #00d1ff;
+  border-left: 3px solid var(--cs-glow);
   margin-left: 3px;
 }
 
 .codesight-explanation-widget {
   max-width: 320px;
   pointer-events: none;
-  border: 1px solid rgba(76, 214, 255, 0.18);
-  background: rgba(16, 19, 26, 0.96);
-  color: #e1e2eb;
+  border: 1px solid rgba(99, 231, 255, 0.16);
+  background: rgba(9, 20, 34, 0.94);
+  color: #e8f4ff;
   border-radius: 14px;
   padding: 12px 14px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(12px);
 }
 
 .codesight-explanation-widget-focus {
-  transform: scale(1.02);
+  box-shadow: 0 0 0 1px rgba(99, 231, 255, 0.12);
 }
 
 .codesight-explanation-title {
   margin: 0;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Geist", "Inter", sans-serif;
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: #859399;
+  color: #86a6c8;
 }
 
 .codesight-explanation-body {
   margin: 8px 0 0;
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.6;
+}
+
+@layer components {
+  .cs-panel {
+    @apply relative overflow-hidden rounded-2xl border backdrop-blur-xl;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: var(--cs-shadow);
+  }
+
+  .cs-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    pointer-events: none;
+  }
+
+  .cs-panel-strong {
+    background: rgba(10, 21, 36, 0.84);
+  }
+
+  .cs-chip {
+    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-300;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(11, 22, 37, 0.84);
+  }
+
+  .cs-input {
+    @apply w-full rounded-xl border px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(10, 22, 39, 0.88);
+  }
+
+  .cs-input:focus {
+    border-color: rgba(99, 231, 255, 0.24);
+    box-shadow: 0 0 0 1px rgba(99, 231, 255, 0.1);
+  }
+
+  .cs-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium text-slate-100 transition;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(12, 22, 37, 0.84);
+  }
+
+  .cs-button:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #f8fdff;
+  }
+
+  .cs-button-primary {
+    @apply border-transparent text-[#04111d];
+    background: linear-gradient(135deg, #8cecff 0%, #63e7ff 100%);
+    box-shadow: none;
+  }
+
+  .cs-button-primary:hover {
+    filter: brightness(1.02);
+  }
 }

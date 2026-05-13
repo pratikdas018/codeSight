@@ -32,22 +32,34 @@ export const ToastViewport = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 16, scale: 0.98 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
-          className="pointer-events-auto fixed right-4 top-20 z-[80] w-[min(420px,calc(100vw-2rem))]"
+          className="pointer-events-auto fixed right-4 top-24 z-[80] w-[min(460px,calc(100vw-2rem))]"
         >
           <div
             className={clsx(
-              "rounded-xl border px-4 py-3 shadow-[0_18px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl",
+              "rounded-[24px] border px-4 py-3 shadow-[0_22px_48px_rgba(0,0,0,0.4)] backdrop-blur-2xl",
               notice.tone === "success"
-                ? "border-emerald-400/25 bg-[#10261c]/95 text-emerald-100"
-                : "border-rose-400/25 bg-[#2a1116]/95 text-rose-100",
+                ? "border-cyan-300/22 bg-[linear-gradient(180deg,rgba(8,31,39,0.95),rgba(8,22,36,0.95))] text-cyan-50"
+                : "border-rose-400/25 bg-[linear-gradient(180deg,rgba(45,12,20,0.96),rgba(26,9,14,0.96))] text-rose-100",
             )}
           >
             <div className="flex items-start gap-3">
+              <div
+                className={clsx(
+                  "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border",
+                  notice.tone === "success"
+                    ? "border-cyan-300/22 bg-cyan-300/10 text-cyan-100"
+                    : "border-rose-300/20 bg-rose-300/10 text-rose-100",
+                )}
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {notice.tone === "success" ? "check_circle" : "warning"}
+                </span>
+              </div>
               <div className="flex-1 text-sm leading-6">{notice.message}</div>
               <button
                 type="button"
                 onClick={onDismiss}
-                className="rounded-md px-2 py-1 text-xs uppercase tracking-[0.12em] text-white/70 transition hover:bg-white/10 hover:text-white"
+                className="rounded-2xl px-2 py-1 text-xs uppercase tracking-[0.12em] text-white/70 transition hover:bg-white/10 hover:text-white"
               >
                 Close
               </button>

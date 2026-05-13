@@ -1,4 +1,8 @@
-import type { ExecutionStep, VariableSnapshot } from "../engine/types";
+import type {
+  ExecutionStep,
+  StackFrameSnapshot,
+  VariableSnapshot,
+} from "../engine/types";
 import type {
   HeapNode,
   MemoryLink,
@@ -6,6 +10,7 @@ import type {
   ParsedObjectValue,
   ParsedValue,
   VisualArray,
+  VisualStackFrame,
   VisualVariable,
   VisualizationModel,
 } from "./types";
@@ -196,6 +201,43 @@ const getPreviousVariableMap = (step: ExecutionStep | null) =>
     ]),
   );
 
+const inferValueType = (rawValue: string, parsedValue: ParsedValue) => {
+  if (parsedValue.kind === "array") {
+    return "array";
+  }
+
+  if (parsedValue.kind === "object") {
+    return "object";
+  }
+
+  const trimmedValue = rawValue.trim();
+
+  if (
+    (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
+    (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))
+  ) {
+    return "string";
+  }
+
+  if (trimmedValue === "true" || trimmedValue === "false") {
+    return "boolean";
+  }
+
+  if (trimmedValue === "null" || trimmedValue === "None") {
+    return "null";
+  }
+
+  if (trimmedValue === "undefined") {
+    return "undefined";
+  }
+
+  if (typeof parsedValue.numericValue === "number") {
+    return Number.isInteger(parsedValue.numericValue) ? "integer" : "number";
+  }
+
+  return "value";
+};
+
 const isPointerCandidate = (variable: VisualVariable) =>
   pointerVariableNames.has(variable.name.toLowerCase()) &&
   Number.isInteger(variable.pointerIndex);
@@ -281,6 +323,7 @@ export const createVisualizationModel = (
       scope: variable.scope,
       currentValue: variable.value,
       previousValue,
+      valueType: inferValueType(variable.value, parsedValue),
       parsedValue,
       change,
       isPointer:
@@ -291,6 +334,36 @@ export const createVisualizationModel = (
       emphasis: change !== "unchanged" || isComposite,
     };
   });
+
+  const visualVariableMap = new Map(
+    visualVariables.map((variable) => [variable.id, variable]),
+  );
+
+  const fallbackFrames = Array.from(
+    new Set(currentVariables.map((variable) => variable.scope)),
+  ).map((scopeName) => ({
+    name: scopeName,
+    locals: currentVariables.filter((variable) => variable.scope === scopeName),
+  }));
+
+  const stackFrames: VisualStackFrame[] = (step?.stack ?? fallbackFrames).map(
+    (frame: StackFrameSnapshot | { name: string; locals: VariableSnapshot[] }) => ({
+      id: `frame:${frame.name}`,
+      name: frame.name,
+      locals: frame.locals
+        .map((local) => visualVariableMap.get(`${local.scope}:${local.name}`))
+        .filter((variable): variable is VisualVariable => Boolean(variable)),
+      isActive: false,
+      isGlobal: frame.name === "global",
+    }),
+  );
+
+  if (stackFrames.length > 0) {
+    stackFrames[0] = {
+      ...stackFrames[0],
+      isActive: true,
+    };
+  }
 
   const arrays: VisualArray[] = visualVariables
     .filter(
@@ -357,6 +430,7 @@ export const createVisualizationModel = (
 
   return {
     variables: visualVariables,
+    stackFrames,
     arrays,
     heapNodes,
     links,

@@ -1,7 +1,12 @@
 import { parse } from "acorn";
 import { formatRuntimeValue } from "../utils/formatters";
 import { isUserFunctionDefinition, supportedMathMethods } from "./builtins";
-import type { ExecutionStep, ExecutionTimeline, VariableSnapshot } from "./types";
+import type {
+  ExecutionStep,
+  ExecutionTimeline,
+  StackFrameSnapshot,
+  VariableSnapshot,
+} from "./types";
 
 type RuntimeNode = {
   type: string;
@@ -633,6 +638,7 @@ class StepInterpreter {
       line,
       description,
       variables: this.collectVariables(),
+      stack: this.collectStackFrames(),
       output: [...this.output],
     });
   }
@@ -657,6 +663,21 @@ class StepInterpreter {
     }
 
     return snapshots.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private collectStackFrames(): StackFrameSnapshot[] {
+    return [...this.scopes]
+      .reverse()
+      .map((scope) => ({
+        name: scope.name,
+        locals: [...scope.bindings.entries()]
+          .map(([name, value]) => ({
+            name,
+            scope: scope.name,
+            value: formatRuntimeValue(value),
+          }))
+          .sort((left, right) => left.name.localeCompare(right.name)),
+      }));
   }
 
   private getLine(node: RuntimeNode) {

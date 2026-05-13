@@ -9,7 +9,7 @@ const HomePage = lazy(() =>
 const App = () => (
   <Suspense
     fallback={
-      <main className="flex min-h-screen items-center justify-center bg-[#0b0e14] text-sm text-slate-300">
+      <main className="flex min-h-screen items-center justify-center bg-[#07111f] text-sm text-slate-300">
         Loading CodeSight...
       </main>
     }

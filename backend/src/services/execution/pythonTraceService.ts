@@ -94,6 +94,32 @@ def serialize_scope(frame: FrameType):
     snapshots.sort(key=lambda item: item["name"])
     return snapshots
 
+def serialize_stack(frame: FrameType):
+    frames = []
+    current = frame
+
+    while current and current.f_code.co_filename == FILENAME:
+        scope_name = "global" if current.f_code.co_name == "<module>" else current.f_code.co_name
+        locals_snapshot = []
+
+        for key, value in current.f_locals.items():
+            if should_skip(key) or key == "__builtins__":
+                continue
+            locals_snapshot.append({
+                "name": key,
+                "scope": scope_name,
+                "value": safe_repr(value),
+            })
+
+        locals_snapshot.sort(key=lambda item: item["name"])
+        frames.append({
+            "name": scope_name,
+            "locals": locals_snapshot,
+        })
+        current = current.f_back
+
+    return frames
+
 def build_description(frame: FrameType):
     scope_name = "global" if frame.f_code.co_name == "<module>" else frame.f_code.co_name
     return f"Executing Python line {frame.f_lineno} in {scope_name}."
@@ -107,6 +133,7 @@ def tracer(frame, event, arg):
             "line": frame.f_lineno,
             "description": build_description(frame),
             "variables": serialize_scope(frame),
+            "stack": serialize_stack(frame),
             "output": console_output.snapshot(),
         })
     elif event == "return" and frame.f_code.co_name != "<module>":
@@ -114,6 +141,7 @@ def tracer(frame, event, arg):
             "line": frame.f_lineno,
             "description": f"{frame.f_code.co_name} returned {safe_repr(arg)}.",
             "variables": serialize_scope(frame),
+            "stack": serialize_stack(frame),
             "output": console_output.snapshot(),
         })
 

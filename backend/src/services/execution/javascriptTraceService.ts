@@ -4,6 +4,7 @@ import { isUserFunctionDefinition, supportedMathMethods } from "./javascriptBuil
 import type {
   ExecutionStep,
   ExecutionTimeline,
+  StackFrameSnapshot,
   VariableSnapshot,
 } from "../../types/execution";
 
@@ -626,6 +627,7 @@ class StepInterpreter {
       line,
       description,
       variables: this.collectVariables(),
+      stack: this.collectStackFrames(),
       output: [...this.output],
     });
   }
@@ -650,6 +652,21 @@ class StepInterpreter {
     }
 
     return snapshots.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private collectStackFrames(): StackFrameSnapshot[] {
+    return [...this.scopes]
+      .reverse()
+      .map((scope) => ({
+        name: scope.name,
+        locals: [...scope.bindings.entries()]
+          .map(([name, value]) => ({
+            name,
+            scope: scope.name,
+            value: formatRuntimeValue(value),
+          }))
+          .sort((left, right) => left.name.localeCompare(right.name)),
+      }));
   }
 
   private getLine(node: RuntimeNode) {

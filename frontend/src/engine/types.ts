@@ -6,11 +6,17 @@ export interface VariableSnapshot {
   value: string;
 }
 
+export interface StackFrameSnapshot {
+  name: string;
+  locals: VariableSnapshot[];
+}
+
 export interface ExecutionStep {
   line: number;
   description: string;
   explanation?: string;
   variables: VariableSnapshot[] | Record<string, unknown>;
+  stack?: StackFrameSnapshot[];
   output: string[];
 }
 

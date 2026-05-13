@@ -1,4 +1,9 @@
-import type { ExecutionStep, SupportedLanguage, VariableSnapshot } from "../../types/execution";
+import type {
+  ExecutionStep,
+  StackFrameSnapshot,
+  SupportedLanguage,
+  VariableSnapshot,
+} from "../../types/execution";
 
 type RuntimePrimitive = number | string;
 type RuntimeArrayValue = Array<RuntimePrimitive | null>;
@@ -971,6 +976,7 @@ class CompiledTraceInterpreter {
       description,
       explanation,
       variables: this.collectVariables(context),
+      stack: this.collectStackFrames(context),
       output: this.finalOutputLines.slice(0, this.revealedOutputCount),
     });
   }
@@ -1012,6 +1018,43 @@ class CompiledTraceInterpreter {
     }
 
     return snapshots.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private collectStackFrames(context: ExecutionContext): StackFrameSnapshot[] {
+    const frames: StackFrameSnapshot[] = [];
+    let current: ExecutionContext | null = context;
+
+    while (current) {
+      const locals: VariableSnapshot[] = [];
+
+      for (const [name, alias] of current.aliases.entries()) {
+        locals.push({
+          name,
+          scope: current.scopeName,
+          value: serializeValue(this.getValue(alias.name, alias.context)),
+        });
+      }
+
+      for (const [name, value] of current.values.entries()) {
+        if (locals.some((local) => local.name === name)) {
+          continue;
+        }
+
+        locals.push({
+          name,
+          scope: current.scopeName,
+          value: serializeValue(value),
+        });
+      }
+
+      frames.push({
+        name: current.scopeName,
+        locals: locals.sort((left, right) => left.name.localeCompare(right.name)),
+      });
+      current = current.parent;
+    }
+
+    return frames;
   }
 }
 

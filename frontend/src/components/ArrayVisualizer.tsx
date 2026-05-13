@@ -23,9 +23,9 @@ export const ArrayVisualizer = ({
     return (
       <div
         className={clsx(
-          "rounded-[1.7rem] border border-dashed px-5 py-10 text-sm",
+          "rounded-[1.9rem] border border-dashed px-5 py-10 text-sm",
           isDark
-            ? "border-slate-700 bg-slate-900/60 text-slate-400"
+            ? "border-white/10 bg-[#091525]/82 text-slate-400"
             : "border-slate-200 bg-slate-50/80 text-slate-500",
         )}
       >
@@ -51,9 +51,9 @@ export const ArrayVisualizer = ({
             key={array.id}
             layout
             className={clsx(
-              "rounded-[1.7rem] border p-4 transition",
+              "rounded-[1.9rem] border p-4 transition shadow-[0_18px_48px_rgba(0,0,0,0.22)]",
               isDark
-                ? "border-slate-700/70 bg-slate-900/80"
+                ? "border-white/10 bg-[linear-gradient(180deg,rgba(10,23,37,0.92),rgba(8,18,31,0.96))]"
                 : "border-white/70 bg-white/90",
               focusMode && !isEmphasized
                 ? "opacity-45 saturate-50"
@@ -83,16 +83,16 @@ export const ArrayVisualizer = ({
                 {array.pointers.map((pointer) => (
                   <span
                     key={`${array.id}-${pointer.name}`}
-                    className={clsx(
-                      "rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-[0.2em]",
-                      pointer.active
-                        ? isDark
-                          ? "bg-cyan-500/15 text-cyan-200"
-                          : "bg-cyan-100 text-cyan-700"
-                        : isDark
-                          ? "bg-slate-800 text-slate-300"
-                          : "bg-slate-100 text-slate-600",
-                    )}
+                        className={clsx(
+                          "rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-[0.2em]",
+                          pointer.active
+                            ? isDark
+                              ? "bg-cyan-300/12 text-cyan-100"
+                              : "bg-cyan-100 text-cyan-700"
+                            : isDark
+                              ? "bg-white/[0.04] text-slate-300"
+                              : "bg-slate-100 text-slate-600",
+                        )}
                   >
                     {pointer.name} = {pointer.index}
                   </span>
@@ -111,10 +111,10 @@ export const ArrayVisualizer = ({
                           "flex h-24 w-[72px] flex-col items-center justify-end rounded-[1.4rem] border pb-3",
                           array.activeIndices.includes(item.index)
                             ? isDark
-                              ? "border-cyan-400/50 bg-cyan-400/10"
+                              ? "border-cyan-300/24 bg-cyan-300/10"
                               : "border-cyan-300 bg-cyan-50"
                             : isDark
-                              ? "border-slate-700 bg-slate-950/60"
+                              ? "border-white/8 bg-[#07111f]/82"
                               : "border-slate-200 bg-slate-50/90",
                         )}
                       >
@@ -147,10 +147,10 @@ export const ArrayVisualizer = ({
                               "rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em]",
                               pointer.active
                                 ? isDark
-                                  ? "bg-cyan-500/15 text-cyan-200"
+                                  ? "bg-cyan-300/12 text-cyan-100"
                                   : "bg-cyan-100 text-cyan-700"
                                 : isDark
-                                  ? "bg-slate-800 text-slate-300"
+                                  ? "bg-white/[0.04] text-slate-300"
                                   : "bg-slate-100 text-slate-600",
                             )}
                             style={{ marginTop: pointerIndex * 26 }}
@@ -161,7 +161,7 @@ export const ArrayVisualizer = ({
                             className={clsx(
                               "mt-2 h-8 w-px",
                               pointer.active
-                                ? "bg-cyan-400"
+                                ? "bg-cyan-300"
                                 : isDark
                                   ? "bg-slate-600"
                                   : "bg-slate-300",
@@ -196,10 +196,10 @@ export const ArrayVisualizer = ({
                             "flex h-14 w-14 items-center justify-center rounded-[1rem] border text-sm font-semibold shadow-sm",
                             item.changed
                               ? isDark
-                                ? "border-amber-400/50 bg-amber-400/15 text-amber-100"
+                                ? "border-cyan-300/24 bg-cyan-300/10 text-cyan-100 shadow-[0_0_24px_rgba(99,231,255,0.12)]"
                                 : "border-amber-300 bg-amber-100 text-amber-900"
                               : isDark
-                                ? "border-slate-600 bg-slate-800 text-slate-100"
+                                ? "border-white/8 bg-[#102033] text-slate-100"
                                 : "border-slate-200 bg-white text-ink",
                           )}
                         >

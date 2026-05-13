@@ -32,6 +32,7 @@ export interface VisualVariable {
   scope: string;
   currentValue: string;
   previousValue?: string;
+  valueType: string;
   parsedValue: ParsedValue;
   change:
     | "added"
@@ -42,6 +43,14 @@ export interface VisualVariable {
   pointerIndex?: number;
   isComposite: boolean;
   emphasis: boolean;
+}
+
+export interface VisualStackFrame {
+  id: string;
+  name: string;
+  locals: VisualVariable[];
+  isActive: boolean;
+  isGlobal: boolean;
 }
 
 export interface VisualArrayItem {
@@ -85,6 +94,7 @@ export interface MemoryLink {
 
 export interface VisualizationModel {
   variables: VisualVariable[];
+  stackFrames: VisualStackFrame[];
   arrays: VisualArray[];
   heapNodes: HeapNode[];
   links: MemoryLink[];
