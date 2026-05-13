@@ -26,7 +26,7 @@ export const env = {
   remoteExecutorUrl: process.env.REMOTE_EXECUTOR_URL?.trim() ?? "",
   remoteExecutorTimeoutMs: parseNumber(
     process.env.REMOTE_EXECUTOR_TIMEOUT_MS,
-    20_000,
+    60_000,
   ),
   executorSharedSecret: process.env.EXECUTOR_SHARED_SECRET?.trim() ?? "",
   executionProvider: (process.env.EXECUTION_PROVIDER ?? "auto").toLowerCase(),

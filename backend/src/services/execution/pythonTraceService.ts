@@ -7,7 +7,7 @@ import type { ExecutionTimeline } from "../../types/execution";
 import { removeDirectory } from "../../utils/removeDirectory";
 
 const execFileAsync = promisify(execFile);
-const executionTimeoutMs = 8000;
+const defaultExecutionTimeoutMs = 10000;
 const executionMaxBuffer = 1024 * 1024;
 
 const pythonRunnerTemplate = (
@@ -192,6 +192,7 @@ const getPythonCandidates = (): PythonCommand[] => {
 export const executePython = async (
   code: string,
   stdin = "",
+  timeoutMs = defaultExecutionTimeoutMs,
 ): Promise<ExecutionTimeline> => {
   const tempDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), "codesight-python-"),
@@ -215,7 +216,7 @@ export const executePython = async (
           candidate.command,
           [...candidate.args, runnerPath],
           {
-            timeout: executionTimeoutMs,
+            timeout: timeoutMs,
             maxBuffer: executionMaxBuffer,
           },
         );
@@ -238,6 +239,22 @@ export const executePython = async (
           continue;
         }
 
+        const stderr =
+          typeof error === "object" &&
+          error !== null &&
+          "stderr" in error &&
+          typeof (error as { stderr?: string }).stderr === "string"
+            ? (error as { stderr: string }).stderr
+            : "";
+
+        if (
+          candidate.command === "python" &&
+          /Python was not found; run without arguments to install/i.test(stderr)
+        ) {
+          lastError = error;
+          continue;
+        }
+
         if (
           typeof error === "object" &&
           error !== null &&
@@ -254,8 +271,23 @@ export const executePython = async (
               ...(parsedTrace.error ? { error: parsedTrace.error } : {}),
             };
           } catch {
+            if (
+              "code" in (error as object) &&
+              (error as { code?: string }).code === "ETIMEDOUT"
+            ) {
+              throw new Error(`Python execution timed out after ${timeoutMs}ms.`);
+            }
             throw error;
           }
+        }
+
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error as { code?: string }).code === "ETIMEDOUT"
+        ) {
+          throw new Error(`Python execution timed out after ${timeoutMs}ms.`);
         }
 
         throw error;

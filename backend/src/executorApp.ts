@@ -50,6 +50,7 @@ executorApp.use((request, response, next) => {
 executorApp.post("/internal/execute", async (request, response) => {
   const code = String(request.body.code ?? "");
   const language = String(request.body.language ?? "").trim().toLowerCase();
+  const stdin = String(request.body.stdin ?? "");
 
   if (!code.trim()) {
     return response.status(400).json({
@@ -64,7 +65,7 @@ executorApp.post("/internal/execute", async (request, response) => {
   }
 
   try {
-    const result = await executeCodeDirect(code, language);
+    const result = await executeCodeDirect(code, language, stdin);
     return response.json(result);
   } catch (error) {
     return response.status(503).json({

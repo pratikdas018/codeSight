@@ -51,6 +51,35 @@ const createEmptyTrace = (language: SupportedLanguage): ExecutionTrace => ({
   executionTime: 0,
   timedOut: false,
   language,
+  status: "completed",
+  phases: {
+    compile: null,
+    run: null,
+  },
+  limits: {
+    queueConcurrency: 1,
+    queueDepthLimit: 0,
+    compileTimeoutMs: 0,
+    runTimeoutMs: 0,
+    memoryLimitMb: 0,
+    cpuLimit: 0,
+    pidsLimit: 0,
+  },
+  metrics: {
+    queueTimeMs: 0,
+    executionTimeMs: 0,
+    compileTimeMs: 0,
+    runTimeMs: 0,
+    peakMemoryBytes: null,
+    peakMemoryKb: null,
+  },
+  diagnostics: [],
+  stdin: {
+    provided: false,
+    lineCount: 0,
+    charCount: 0,
+    preview: "",
+  },
 });
 
 const languageLabels: Record<SupportedLanguage, string> = {
@@ -874,14 +903,15 @@ export const HomePage = () => {
       setActiveWorkspaceTab(nextTrace.steps.length > 0 ? "debugger" : "explorer");
       setActiveRailSection(nextTrace.steps.length > 0 ? "variables" : "guide");
 
-      if (nextTrace.error) {
+      if (nextTrace.status !== "completed") {
+        const primaryDiagnostic = nextTrace.diagnostics[0];
         const timeoutHint =
           nextTrace.timedOut && !programInput.trim()
             ? " If your program expects input, add it in the Program Input box before running again."
             : "";
         setNotice({
           tone: "error",
-          message: `${languageLabels[language]} run failed in ${nextTrace.executionTime}ms. ${nextTrace.error}${timeoutHint}`,
+          message: `${languageLabels[language]} ${nextTrace.status.replace(/_/g, " ")} in ${nextTrace.executionTime}ms. ${((primaryDiagnostic?.summary ?? nextTrace.error) || "Execution failed.")}${timeoutHint}`,
         });
       } else {
         setNotice({
@@ -1209,16 +1239,25 @@ export const HomePage = () => {
       : "Use the timeline to move through the captured execution state.");
   const activeSidebarLabel =
     railItems.find((item) => item.section === activeRailSection)?.label ?? "Explorer";
-  const runStateLabel = trace.error
-    ? "Execution blocked"
-    : trace.steps.length > 0
-      ? "Trace captured"
-      : "Workbench idle";
-  const runStateDetail = trace.error
-    ? trace.error
-    : trace.steps.length > 0
-      ? `${trace.steps.length} timeline steps ready for playback.`
-      : "Choose a language, edit code, and capture a fresh execution trace.";
+  const runStateLabel = isExecuting
+    ? "Execution running"
+    : trace.status === "compile_error"
+      ? "Compilation failed"
+      : trace.status === "runtime_error"
+        ? "Runtime failed"
+        : trace.status === "timed_out"
+          ? "Execution timed out"
+          : trace.steps.length > 0 || trace.outputLines.length > 0
+            ? "Trace captured"
+            : "Workbench idle";
+  const runStateDetail = isExecuting
+    ? "Compiling and running inside the execution sandbox."
+    : trace.diagnostics[0]?.summary ??
+      (trace.error
+        ? trace.error
+        : trace.steps.length > 0
+          ? `${trace.steps.length} timeline steps ready for playback.`
+          : "Choose a language, edit code, and capture a fresh execution trace.");
   const featuredOutput = consoleOutput.slice(-5);
   const historyPreview = history.slice(0, 5);
   const accountInitial = user?.email?.slice(0, 1).toUpperCase() ?? "G";
@@ -1695,18 +1734,20 @@ export const HomePage = () => {
                 </div>
               </>
             ) : (
-              <ExecutionVisualizer
-                step={activeStep}
-                previousStep={previousStep}
-                steps={trace.steps}
-                currentStepIndex={currentStepIndex}
-                activeLineCode={activeLineCode}
-                plainEnglishSummary={plainEnglishSummary}
-                consoleOutput={consoleOutput}
-                error={trace.error || undefined}
-                onStepSelect={(nextIndex) => {
-                  stopPlayback();
-                  setActiveWorkspaceTab("visualizer");
+                <ExecutionVisualizer
+                  trace={trace}
+                  step={activeStep}
+                  previousStep={previousStep}
+                  steps={trace.steps}
+                  currentStepIndex={currentStepIndex}
+                  activeLineCode={activeLineCode}
+                  plainEnglishSummary={plainEnglishSummary}
+                  consoleOutput={consoleOutput}
+                  error={trace.error || undefined}
+                  isExecuting={isExecuting}
+                  onStepSelect={(nextIndex) => {
+                    stopPlayback();
+                    setActiveWorkspaceTab("visualizer");
                   setActiveRailSection("flow");
                   setCurrentStepIndex(nextIndex);
                 }}

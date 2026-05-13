@@ -1,23 +1,24 @@
-import { execFile, spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { performance } from "node:perf_hooks";
-import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
+import { performance } from "node:perf_hooks";
 import {
   splitOutputLines,
+  type ExecutionPhaseResult,
   type ExecutionTrace,
   type SupportedLanguage,
 } from "../types/execution";
 import { createCompiledLanguageWalkthrough } from "../services/execution/compiledTraceService";
 import { executeJavaScript } from "../services/execution/javascriptTraceService";
 import { executePython } from "../services/execution/pythonTraceService";
+import {
+  executionInfrastructureConfig,
+  languageExecutionConfigs,
+} from "./languageConfigs";
+import { createTraceSkeleton, finalizeTrace, setPhase, summarizeStdin } from "./runtimeTrace";
+import { runCommandWithLimits } from "./runCommandWithLimits";
 import { removeDirectory } from "../utils/removeDirectory";
-
-const execFileAsync = promisify(execFile);
-const executionTimeoutMs = Number(process.env.EXECUTION_TIMEOUT_MS ?? 5000);
-const maxBuffer = 1024 * 1024;
 
 interface CommandCandidate {
   command: string;
@@ -50,111 +51,66 @@ const getJavaHomeBinCandidate = (binaryName: "java" | "javac") => {
   return [{ command: executable }];
 };
 
-const runCommand = (
+const getNodeCandidates = (): CommandCandidate[] => [
+  { command: process.execPath },
+  { command: "node" },
+];
+
+const getGccCandidates = (): CommandCandidate[] => [{ command: "gcc" }];
+const getGppCandidates = (): CommandCandidate[] => [{ command: "g++" }];
+const getJavacCandidates = (): CommandCandidate[] => [
+  ...buildConfiguredCandidates(process.env.JAVAC_EXECUTABLE),
+  ...getJavaHomeBinCandidate("javac"),
+  { command: "javac" },
+];
+const getJavaCandidates = (): CommandCandidate[] => [
+  ...buildConfiguredCandidates(process.env.JAVA_EXECUTABLE),
+  ...getJavaHomeBinCandidate("java"),
+  { command: "java" },
+];
+
+const createPhaseResult = (
+  phase: "compile" | "run",
   command: string,
-  args: string[],
-  cwd?: string,
-  stdin = "",
-) =>
-  new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-    let stdoutLength = 0;
-    let stderrLength = 0;
-    let timedOut = false;
-
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-      stdoutLength += Buffer.byteLength(chunk);
-
-      if (stdoutLength + stderrLength > maxBuffer) {
-        child.kill();
-      }
-    });
-
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-      stderrLength += Buffer.byteLength(chunk);
-
-      if (stdoutLength + stderrLength > maxBuffer) {
-        child.kill();
-      }
-    });
-
-    const timeoutHandle = setTimeout(() => {
-      timedOut = true;
-      child.kill();
-    }, executionTimeoutMs);
-
-    child.once("error", (error) => {
-      clearTimeout(timeoutHandle);
-      reject(error);
-    });
-
-    if (stdin) {
-      child.stdin.write(stdin);
-    }
-    child.stdin.end();
-
-    child.once("close", (code) => {
-      clearTimeout(timeoutHandle);
-
-      if (timedOut) {
-        reject({
-          code: "ETIMEDOUT",
-          stdout,
-          stderr,
-        });
-        return;
-      }
-
-      if (stdoutLength + stderrLength > maxBuffer) {
-        reject({
-          code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
-          stdout,
-          stderr,
-        });
-        return;
-      }
-
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-
-      reject({
-        code,
-        stdout,
-        stderr,
-      });
-    });
-  });
+  result: Awaited<ReturnType<typeof runCommandWithLimits>>,
+): ExecutionPhaseResult => ({
+  phase,
+  command,
+  stdout: result.stdout,
+  stderr: result.stderr,
+  exitCode: result.exitCode,
+  durationMs: result.durationMs,
+  timedOut: result.timedOut,
+  status: result.timedOut
+    ? "timed_out"
+    : result.exitCode === 0 && !result.outputLimitExceeded
+      ? "completed"
+      : "failed",
+});
 
 const runWithCandidates = async (
   candidates: CommandCandidate[],
   args: string[],
-  cwd?: string,
-  stdin = "",
+  cwd: string | undefined,
+  stdin: string,
+  timeoutMs: number,
 ) => {
   let lastError: unknown = null;
 
   for (const candidate of candidates) {
     try {
-      return await runCommand(
-        candidate.command,
-        [...(candidate.args ?? []), ...args],
+      const result = await runCommandWithLimits({
+        command: candidate.command,
+        args: [...(candidate.args ?? []), ...args],
         cwd,
         stdin,
-      );
+        timeoutMs,
+        outputLimitBytes: executionInfrastructureConfig.outputBufferBytes,
+      });
+      return {
+        command: [candidate.command, ...(candidate.args ?? []), ...args].join(" "),
+        result,
+      };
     } catch (error) {
       if (
         typeof error === "object" &&
@@ -175,166 +131,73 @@ const runWithCandidates = async (
     : new Error("Required runtime is not installed.");
 };
 
-const buildTrace = (
-  code: string,
-  language: SupportedLanguage,
-  stdout: string,
-  stderr: string,
-  executionTime: number,
-  steps: ExecutionTrace["steps"] = [],
-  timedOut = false,
-): ExecutionTrace => {
-  const outputLines = splitOutputLines(stdout);
-  const compiledLanguageWalkthrough =
-    steps.length === 0 &&
-    !stderr.trim() &&
-    !timedOut &&
-    (language === "c" || language === "cpp" || language === "java")
-      ? createCompiledLanguageWalkthrough(code, language, outputLines)
-      : steps;
-
-  return {
-    language,
-    steps: compiledLanguageWalkthrough,
-    output: stdout,
-    outputLines,
-    error: stderr.trim(),
-    executionTime,
-    timedOut,
-  };
-};
-
-const getNodeCandidates = (): CommandCandidate[] => [
-  { command: process.execPath },
-  { command: "node" },
-];
-
-const getPythonCandidates = (): CommandCandidate[] => [
-  { command: "python" },
-  { command: "py", args: ["-3"] },
-];
-
-const getGccCandidates = (): CommandCandidate[] => [{ command: "gcc" }];
-const getGppCandidates = (): CommandCandidate[] => [{ command: "g++" }];
-const getJavacCandidates = (): CommandCandidate[] => [
-  ...buildConfiguredCandidates(process.env.JAVAC_EXECUTABLE),
-  ...getJavaHomeBinCandidate("javac"),
-  { command: "javac" },
-];
-const getJavaCandidates = (): CommandCandidate[] => [
-  ...buildConfiguredCandidates(process.env.JAVA_EXECUTABLE),
-  ...getJavaHomeBinCandidate("java"),
-  { command: "java" },
-];
-
-const normalizeExecError = (
-  sourceCode: string,
-  language: SupportedLanguage,
+const applyInfrastructureFailure = (
+  trace: ExecutionTrace,
+  phase: "compile" | "run",
+  command: string,
   error: unknown,
-  executionTime: number,
-): ExecutionTrace => {
-  const stdout =
-    typeof error === "object" &&
-    error !== null &&
-    "stdout" in error &&
-    typeof (error as { stdout?: string }).stdout === "string"
-      ? (error as { stdout: string }).stdout
-      : "";
-  const stderrFromProcess =
-    typeof error === "object" &&
-    error !== null &&
-    "stderr" in error &&
-    typeof (error as { stderr?: string }).stderr === "string"
-      ? (error as { stderr: string }).stderr
-      : "";
-  const fallbackMessage =
-    error instanceof Error ? error.message : "Execution failed.";
-  const stderr = stderrFromProcess.trim() || fallbackMessage;
-  const code =
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof (error as { code?: string | number }).code !== "undefined"
-      ? (error as { code?: string | number }).code
-      : "";
-  const timedOut = code === "ETIMEDOUT" || code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
-  const normalizedErrorMessage = String(stderr);
-  const runtimeMessage =
-    language === "java" &&
-    /not recognized|ENOENT|Required runtime is not installed/i.test(normalizedErrorMessage)
-      ? "Java runtime not found. Install a JDK and set JAVA_HOME, or add java/javac to PATH."
-      : language === "c" &&
-          /not recognized|ENOENT|Required runtime is not installed/i.test(normalizedErrorMessage)
-        ? "C compiler not found. Install gcc or add it to PATH."
-        : language === "cpp" &&
-            /not recognized|ENOENT|Required runtime is not installed/i.test(normalizedErrorMessage)
-          ? "C++ compiler not found. Install g++ or add it to PATH."
-          : normalizedErrorMessage;
-
-  const finalError = timedOut
-    ? `Execution timed out after ${executionTimeoutMs}ms.`
-    : runtimeMessage;
-  const shouldProvideWalkthroughFallback =
-    !timedOut &&
-    sourceCode.trim().length > 0 &&
-    (language === "c" || language === "cpp" || language === "java") &&
-    /runtime not found|compiler not found/i.test(finalError);
-
-  return {
-    language,
-    steps: shouldProvideWalkthroughFallback
-      ? createCompiledLanguageWalkthrough(sourceCode, language, [])
-      : [],
-    output: stdout,
-    outputLines: splitOutputLines(stdout),
-    error: finalError,
-    executionTime,
-    timedOut,
-  };
+  durationMs: number,
+) => {
+  const message = error instanceof Error ? error.message : "Execution failed.";
+  setPhase(trace, phase, {
+    phase,
+    command,
+    stdout: "",
+    stderr: message,
+    exitCode: null,
+    durationMs,
+    timedOut: false,
+    status: "failed",
+  });
 };
 
 const executeJavaScriptLocally = async (
   code: string,
   stdin = "",
+  queueTimeMs = 0,
 ): Promise<ExecutionTrace> => {
+  const config = languageExecutionConfigs.javascript;
+  const limits = {
+    queueConcurrency: executionInfrastructureConfig.queueConcurrency,
+    queueDepthLimit: executionInfrastructureConfig.queueDepthLimit,
+    compileTimeoutMs: config.compileTimeoutMs,
+    runTimeoutMs: config.runTimeoutMs,
+    memoryLimitMb: config.memoryLimitMb,
+    cpuLimit: config.cpuLimit,
+    pidsLimit: config.pidsLimit,
+  };
+  const trace = createTraceSkeleton(
+    "javascript",
+    limits,
+    summarizeStdin(stdin),
+    queueTimeMs,
+  );
   const workspaceDir = path.join(os.tmpdir(), "codesight-js", randomUUID());
   const filePath = path.join(workspaceDir, "main.js");
+
   await fs.mkdir(workspaceDir, { recursive: true });
   await fs.writeFile(filePath, code, "utf8");
 
-  const startedAt = performance.now();
-
   try {
-    const executionPromise = runWithCandidates(
+    const { command, result } = await runWithCandidates(
       getNodeCandidates(),
       [filePath],
       workspaceDir,
       stdin,
+      config.runTimeoutMs,
     );
-    const timelinePromise =
-      stdin.trim().length === 0
-        ? Promise.resolve(executeJavaScript(code))
-        : Promise.resolve({ steps: [], output: [] });
-    const [{ stdout, stderr }, timeline] = await Promise.all([
-      executionPromise,
-      timelinePromise,
-    ]);
-
-    return buildTrace(
-      code,
-      "javascript",
-      stdout,
-      stderr,
-      Math.round(performance.now() - startedAt),
-      timeline.steps,
-    );
+    const runPhase = createPhaseResult("run", command, result);
+    setPhase(trace, "run", runPhase);
+    trace.output = runPhase.stdout;
+    trace.outputLines = splitOutputLines(runPhase.stdout);
+    trace.steps =
+      runPhase.status === "completed" && stdin.trim().length === 0
+        ? executeJavaScript(code).steps
+        : [];
+    return finalizeTrace(trace, "javascript");
   } catch (error) {
-    return normalizeExecError(
-      code,
-      "javascript",
-      error,
-      Math.round(performance.now() - startedAt),
-    );
+    applyInfrastructureFailure(trace, "run", config.runCommand, error, 0);
+    return finalizeTrace(trace, "javascript");
   } finally {
     await removeDirectory(workspaceDir);
   }
@@ -343,28 +206,59 @@ const executeJavaScriptLocally = async (
 const executePythonLocally = async (
   code: string,
   stdin = "",
+  queueTimeMs = 0,
 ): Promise<ExecutionTrace> => {
-  const startedAt = performance.now();
+  const config = languageExecutionConfigs.python;
+  const limits = {
+    queueConcurrency: executionInfrastructureConfig.queueConcurrency,
+    queueDepthLimit: executionInfrastructureConfig.queueDepthLimit,
+    compileTimeoutMs: config.compileTimeoutMs,
+    runTimeoutMs: config.runTimeoutMs,
+    memoryLimitMb: config.memoryLimitMb,
+    cpuLimit: config.cpuLimit,
+    pidsLimit: config.pidsLimit,
+  };
+  const trace = createTraceSkeleton(
+    "python",
+    limits,
+    summarizeStdin(stdin),
+    queueTimeMs,
+  );
 
   try {
-    const timeline = await executePython(code, stdin);
+    const startedAt = performance.now();
+    const timeline = await executePython(code, stdin, config.runTimeoutMs);
     const output = timeline.output.join("\n");
-
-    return buildTrace(
-      code,
-      "python",
-      output,
-      timeline.error ?? "",
-      Math.round(performance.now() - startedAt),
-      timeline.steps,
-    );
+    const durationMs = Math.round(performance.now() - startedAt);
+    setPhase(trace, "run", {
+      phase: "run",
+      command: config.runCommand,
+      stdout: output,
+      stderr: timeline.error ?? "",
+      exitCode: timeline.error ? 1 : 0,
+      durationMs,
+      timedOut: false,
+      status: timeline.error ? "failed" : "completed",
+    });
+    trace.steps = timeline.steps;
+    trace.output = output;
+    trace.outputLines = splitOutputLines(output);
+    return finalizeTrace(trace, "python", {
+      runTimeMs: trace.phases.run?.durationMs ?? 0,
+    });
   } catch (error) {
-    return normalizeExecError(
-      code,
-      "python",
-      error,
-      Math.round(performance.now() - startedAt),
-    );
+    const message = error instanceof Error ? error.message : "Python execution failed.";
+    setPhase(trace, "run", {
+      phase: "run",
+      command: config.runCommand,
+      stdout: "",
+      stderr: message,
+      exitCode: null,
+      durationMs: 0,
+      timedOut: /timed out/i.test(message),
+      status: /timed out/i.test(message) ? "timed_out" : "failed",
+    });
+    return finalizeTrace(trace, "python");
   }
 };
 
@@ -372,38 +266,84 @@ const compileAndRunLocally = async (
   language: "c" | "cpp",
   code: string,
   stdin = "",
+  queueTimeMs = 0,
 ): Promise<ExecutionTrace> => {
+  const config = languageExecutionConfigs[language];
+  const limits = {
+    queueConcurrency: executionInfrastructureConfig.queueConcurrency,
+    queueDepthLimit: executionInfrastructureConfig.queueDepthLimit,
+    compileTimeoutMs: config.compileTimeoutMs,
+    runTimeoutMs: config.runTimeoutMs,
+    memoryLimitMb: config.memoryLimitMb,
+    cpuLimit: config.cpuLimit,
+    pidsLimit: config.pidsLimit,
+  };
+  const trace = createTraceSkeleton(
+    language,
+    limits,
+    summarizeStdin(stdin),
+    queueTimeMs,
+  );
   const workspaceDir = path.join(os.tmpdir(), `codesight-${language}`, randomUUID());
-  const sourceFile = path.join(workspaceDir, language === "c" ? "main.c" : "main.cpp");
-  const outputFile = path.join(workspaceDir, process.platform === "win32" ? "program.exe" : "program");
+  const sourceFile = path.join(workspaceDir, config.fileName);
+  const outputFile = path.join(
+    workspaceDir,
+    process.platform === "win32" ? "program.exe" : "program",
+  );
+
   await fs.mkdir(workspaceDir, { recursive: true });
   await fs.writeFile(sourceFile, code, "utf8");
 
-  const startedAt = performance.now();
-
   try {
-    await runWithCandidates(
+    const compileArgs =
+      language === "c"
+        ? [sourceFile, "-O2", "-pipe", "-std=c11", "-o", outputFile]
+        : [sourceFile, "-O2", "-pipe", "-std=c++17", "-o", outputFile];
+    const compileCandidate = await runWithCandidates(
       language === "c" ? getGccCandidates() : getGppCandidates(),
-      [sourceFile, "-O2", language === "c" ? "-std=c11" : "-std=c++17", "-o", outputFile],
+      compileArgs,
       workspaceDir,
+      "",
+      config.compileTimeoutMs,
     );
-
-    const { stdout, stderr } = await runCommand(outputFile, [], workspaceDir, stdin);
-
-    return buildTrace(
-      code,
-      language,
-      stdout,
-      stderr,
-      Math.round(performance.now() - startedAt),
+    const compilePhase = createPhaseResult(
+      "compile",
+      compileCandidate.command,
+      compileCandidate.result,
     );
+    setPhase(trace, "compile", compilePhase);
+
+    if (compilePhase.status !== "completed") {
+      return finalizeTrace(trace, language);
+    }
+
+    const runResult = await runCommandWithLimits({
+      command: outputFile,
+      args: [],
+      cwd: workspaceDir,
+      stdin,
+      timeoutMs: config.runTimeoutMs,
+      outputLimitBytes: executionInfrastructureConfig.outputBufferBytes,
+    });
+    const runPhase = createPhaseResult("run", outputFile, runResult);
+    setPhase(trace, "run", runPhase);
+    trace.output = runPhase.stdout;
+    trace.outputLines = splitOutputLines(runPhase.stdout);
+    trace.steps =
+      runPhase.status === "completed"
+        ? createCompiledLanguageWalkthrough(code, language, trace.outputLines)
+        : [];
+    return finalizeTrace(trace, language);
   } catch (error) {
-    return normalizeExecError(
-      code,
-      language,
+    const phase = trace.phases.compile ? "run" : "compile";
+    applyInfrastructureFailure(
+      trace,
+      phase,
+      phase === "compile" ? config.compileCommand ?? "" : outputFile,
       error,
-      Math.round(performance.now() - startedAt),
+      0,
     );
+    return finalizeTrace(trace, language);
   } finally {
     await removeDirectory(workspaceDir);
   }
@@ -412,37 +352,79 @@ const compileAndRunLocally = async (
 const executeJavaLocally = async (
   code: string,
   stdin = "",
+  queueTimeMs = 0,
 ): Promise<ExecutionTrace> => {
+  const config = languageExecutionConfigs.java;
+  const limits = {
+    queueConcurrency: executionInfrastructureConfig.queueConcurrency,
+    queueDepthLimit: executionInfrastructureConfig.queueDepthLimit,
+    compileTimeoutMs: config.compileTimeoutMs,
+    runTimeoutMs: config.runTimeoutMs,
+    memoryLimitMb: config.memoryLimitMb,
+    cpuLimit: config.cpuLimit,
+    pidsLimit: config.pidsLimit,
+  };
+  const trace = createTraceSkeleton(
+    "java",
+    limits,
+    summarizeStdin(stdin),
+    queueTimeMs,
+  );
   const workspaceDir = path.join(os.tmpdir(), "codesight-java", randomUUID());
   const sourceFile = path.join(workspaceDir, "Main.java");
+
   await fs.mkdir(workspaceDir, { recursive: true });
   await fs.writeFile(sourceFile, code, "utf8");
 
-  const startedAt = performance.now();
-
   try {
-    await runWithCandidates(getJavacCandidates(), [sourceFile], workspaceDir);
-    const { stdout, stderr } = await runWithCandidates(
+    const compileCandidate = await runWithCandidates(
+      getJavacCandidates(),
+      [sourceFile],
+      workspaceDir,
+      "",
+      config.compileTimeoutMs,
+    );
+    const compilePhase = createPhaseResult(
+      "compile",
+      compileCandidate.command,
+      compileCandidate.result,
+    );
+    setPhase(trace, "compile", compilePhase);
+
+    if (compilePhase.status !== "completed") {
+      return finalizeTrace(trace, "java");
+    }
+
+    const runCandidate = await runWithCandidates(
       getJavaCandidates(),
       ["-cp", workspaceDir, "Main"],
       workspaceDir,
       stdin,
+      config.runTimeoutMs,
     );
-
-    return buildTrace(
-      code,
-      "java",
-      stdout,
-      stderr,
-      Math.round(performance.now() - startedAt),
+    const runPhase = createPhaseResult(
+      "run",
+      runCandidate.command,
+      runCandidate.result,
     );
+    setPhase(trace, "run", runPhase);
+    trace.output = runPhase.stdout;
+    trace.outputLines = splitOutputLines(runPhase.stdout);
+    trace.steps =
+      runPhase.status === "completed"
+        ? createCompiledLanguageWalkthrough(code, "java", trace.outputLines)
+        : [];
+    return finalizeTrace(trace, "java");
   } catch (error) {
-    return normalizeExecError(
-      code,
-      "java",
+    const phase = trace.phases.compile ? "run" : "compile";
+    applyInfrastructureFailure(
+      trace,
+      phase,
+      phase === "compile" ? config.compileCommand ?? "" : config.runCommand,
       error,
-      Math.round(performance.now() - startedAt),
+      0,
     );
+    return finalizeTrace(trace, "java");
   } finally {
     await removeDirectory(workspaceDir);
   }
@@ -452,17 +434,18 @@ export const executeLocally = async (
   code: string,
   language: SupportedLanguage,
   stdin = "",
+  queueTimeMs = 0,
 ): Promise<ExecutionTrace> => {
   switch (language) {
     case "javascript":
-      return executeJavaScriptLocally(code, stdin);
+      return executeJavaScriptLocally(code, stdin, queueTimeMs);
     case "python":
-      return executePythonLocally(code, stdin);
+      return executePythonLocally(code, stdin, queueTimeMs);
     case "c":
-      return compileAndRunLocally("c", code, stdin);
+      return compileAndRunLocally("c", code, stdin, queueTimeMs);
     case "cpp":
-      return compileAndRunLocally("cpp", code, stdin);
+      return compileAndRunLocally("cpp", code, stdin, queueTimeMs);
     case "java":
-      return executeJavaLocally(code, stdin);
+      return executeJavaLocally(code, stdin, queueTimeMs);
   }
 };

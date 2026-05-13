@@ -1,12 +1,13 @@
 import { memo, type ReactElement, useMemo, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import clsx from "clsx";
-import type { ExecutionStep } from "../engine/types";
+import type { ExecutionStep, ExecutionTrace } from "../engine/types";
 import { createVisualizationModel } from "../visualization/model";
 
 type VisualizerSection = "variables" | "stack" | "memory" | "flow";
 
 interface ExecutionVisualizerProps {
+  trace: ExecutionTrace;
   step: ExecutionStep | null;
   previousStep: ExecutionStep | null;
   steps: ExecutionStep[];
@@ -15,6 +16,7 @@ interface ExecutionVisualizerProps {
   plainEnglishSummary: string;
   consoleOutput: string[];
   error?: string;
+  isExecuting: boolean;
   onStepSelect: (nextIndex: number) => void;
 }
 
@@ -50,6 +52,16 @@ const changeToneClasses: Record<string, string> = {
   updated: "border-cyan-300/20 bg-cyan-300/8 text-cyan-100",
   unchanged: "border-white/8 bg-[#0a1524] text-slate-300",
   removed: "border-rose-300/20 bg-rose-300/8 text-rose-100",
+};
+
+const executionStatusTone: Record<string, string> = {
+  queued: "border-white/8 bg-white/[0.03] text-slate-300",
+  running: "border-cyan-300/18 bg-cyan-300/10 text-cyan-100",
+  completed: "border-emerald-300/18 bg-emerald-300/10 text-emerald-100",
+  compile_error: "border-amber-300/18 bg-amber-300/10 text-amber-100",
+  runtime_error: "border-rose-300/18 bg-rose-300/10 text-rose-100",
+  timed_out: "border-rose-300/18 bg-rose-300/10 text-rose-100",
+  internal_error: "border-rose-300/18 bg-rose-300/10 text-rose-100",
 };
 
 const VariableStateList = memo(
@@ -470,8 +482,191 @@ const FlowPanel = memo(
 
 FlowPanel.displayName = "FlowPanel";
 
+const RuntimePanel = memo(
+  ({
+    trace,
+    isExecuting,
+  }: {
+    trace: ExecutionTrace;
+    isExecuting: boolean;
+  }) => {
+    const phases = [trace.phases.compile, trace.phases.run].filter(
+      (phase): phase is NonNullable<ExecutionTrace["phases"]["compile"]> =>
+        Boolean(phase),
+    );
+
+    return (
+      <section className="rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+              Runtime Status
+            </div>
+            <p className="mt-1 text-sm text-slate-400">
+              Compile and execution phases are reported separately so failures are easier to debug.
+            </p>
+          </div>
+          <span
+            className={clsx(
+              "rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.14em]",
+              executionStatusTone[trace.status] ?? executionStatusTone.running,
+            )}
+          >
+            {isExecuting ? "running" : trace.status.replace(/_/g, " ")}
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/6 bg-[#07111f]/90 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+              Timing
+            </div>
+            <div className="mt-2 text-sm text-slate-200">
+              total {trace.executionTime}ms
+            </div>
+            <div className="mt-1 text-xs text-slate-400">
+              queue {trace.metrics.queueTimeMs}ms, compile {trace.metrics.compileTimeMs}ms, run {trace.metrics.runTimeMs}ms
+            </div>
+            {typeof trace.metrics.peakMemoryKb === "number" ? (
+              <div className="mt-1 text-xs text-slate-400">
+                peak memory {trace.metrics.peakMemoryKb} KB
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-white/6 bg-[#07111f]/90 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+              Limits
+            </div>
+            <div className="mt-2 text-sm text-slate-200">
+              run {trace.limits.runTimeoutMs}ms, compile {trace.limits.compileTimeoutMs}ms
+            </div>
+            <div className="mt-1 text-xs text-slate-400">
+              {trace.limits.memoryLimitMb}MB, {trace.limits.cpuLimit} CPU, {trace.limits.pidsLimit} pids
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/6 bg-[#07111f]/90 px-3 py-3 sm:col-span-2">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+              Program Input
+            </div>
+            <div className="mt-2 text-sm text-slate-200">
+              {trace.stdin.provided
+                ? `${trace.stdin.lineCount} line${trace.stdin.lineCount === 1 ? "" : "s"}, ${trace.stdin.charCount} chars`
+                : "No stdin provided"}
+            </div>
+            {trace.stdin.preview ? (
+              <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-white/6 bg-[#0a1524] px-3 py-2 font-mono text-xs text-slate-300">
+                {trace.stdin.preview}
+              </pre>
+            ) : null}
+          </div>
+        </div>
+
+        {trace.diagnostics.length > 0 ? (
+          <div className="mt-4 space-y-2">
+            {trace.diagnostics.map((diagnostic, index) => (
+              <div
+                key={`${diagnostic.category}-${index}`}
+                className="rounded-2xl border border-rose-300/16 bg-rose-300/10 px-3 py-3"
+              >
+                <div className="text-xs uppercase tracking-[0.16em] text-rose-100">
+                  {diagnostic.summary}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-rose-50">
+                  {diagnostic.detail}
+                </p>
+                {diagnostic.suggestion ? (
+                  <p className="mt-2 text-xs leading-5 text-rose-100/80">
+                    {diagnostic.suggestion}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mt-4 space-y-3">
+          {phases.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm leading-6 text-slate-400">
+              Run the program to inspect compilation and execution details.
+            </div>
+          ) : (
+            phases.map((phase) => (
+              <div
+                key={phase.phase}
+                className="rounded-2xl border border-white/8 bg-[#0a1524] p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium capitalize text-white">
+                      {phase.phase} phase
+                    </div>
+                    <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                      {phase.durationMs}ms
+                      {typeof phase.exitCode === "number" ? `, exit ${phase.exitCode}` : ""}
+                    </div>
+                  </div>
+                  <span
+                    className={clsx(
+                      "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]",
+                      phase.status === "completed"
+                        ? "border-emerald-300/18 bg-emerald-300/10 text-emerald-100"
+                        : phase.status === "timed_out"
+                          ? "border-rose-300/18 bg-rose-300/10 text-rose-100"
+                          : phase.status === "skipped"
+                            ? "border-white/8 bg-white/[0.03] text-slate-400"
+                            : "border-amber-300/18 bg-amber-300/10 text-amber-100",
+                    )}
+                  >
+                    {phase.status.replace(/_/g, " ")}
+                  </span>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-white/6 bg-[#07111f]/90 px-3 py-2.5">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                    Command
+                  </div>
+                  <div className="mt-2 break-all font-mono text-xs text-slate-300">
+                    {phase.command}
+                  </div>
+                </div>
+
+                {phase.stdout ? (
+                  <div className="mt-3 rounded-xl border border-white/6 bg-[#07111f]/90 px-3 py-2.5">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                      Output
+                    </div>
+                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-slate-300">
+                      {phase.stdout}
+                    </pre>
+                  </div>
+                ) : null}
+
+                {phase.stderr ? (
+                  <div className="mt-3 rounded-xl border border-rose-300/14 bg-rose-300/8 px-3 py-2.5">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-rose-100">
+                      Error stream
+                    </div>
+                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-rose-50">
+                      {phase.stderr}
+                    </pre>
+                  </div>
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    );
+  },
+);
+
+RuntimePanel.displayName = "RuntimePanel";
+
 export const ExecutionVisualizer = memo(
   ({
+    trace,
     step,
     previousStep,
     steps,
@@ -480,6 +675,7 @@ export const ExecutionVisualizer = memo(
     plainEnglishSummary,
     consoleOutput,
     error,
+    isExecuting,
     onStepSelect,
   }: ExecutionVisualizerProps) => {
     const [mobileSection, setMobileSection] =
@@ -531,9 +727,11 @@ export const ExecutionVisualizer = memo(
         </div>
 
         <div className="workbench-scrollbar flex-1 overflow-y-auto px-4 py-4">
+          <RuntimePanel trace={trace} isExecuting={isExecuting} />
+
           <motion.section
             layout
-            className="rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4"
+            className="mt-4 rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
