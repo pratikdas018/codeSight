@@ -9,6 +9,7 @@ import {
   normalizeAuthEmail,
   toAuthErrorMessage,
 } from "../utils/auth";
+import { restoreVerifiedSession } from "./sessionService";
 
 export type AuthActionResult =
   | {
@@ -24,14 +25,22 @@ export type AuthActionResult =
 const mapUser = (
   authUser: SupabaseAuthUser,
   profile?: {
+    avatar_url: string | null;
     id: string;
+    display_name: string | null;
     email: string;
     created_at: string;
+    last_seen_at: string;
+    updated_at: string;
   } | null,
 ): User => ({
   id: authUser.id,
   email: profile?.email ?? authUser.email ?? "",
   createdAt: profile?.created_at ?? authUser.created_at,
+  updatedAt: profile?.updated_at,
+  displayName: profile?.display_name,
+  avatarUrl: profile?.avatar_url,
+  lastSeenAt: profile?.last_seen_at,
 });
 
 const resolveUserProfile = async (authUser: SupabaseAuthUser) => {
@@ -45,7 +54,9 @@ const resolveUserProfile = async (authUser: SupabaseAuthUser) => {
 export const fetchProfile = async (authUser: SupabaseAuthUser) => {
   const { data, error } = await requireSupabase()
     .from("profiles")
-    .select("id, email, created_at")
+    .select(
+      "id, email, display_name, avatar_url, created_at, updated_at, last_seen_at",
+    )
     .eq("id", authUser.id)
     .maybeSingle();
 
@@ -194,3 +205,5 @@ export const signOutSession = async () => {
     throw new Error(toAuthErrorMessage(error));
   }
 };
+
+export { restoreVerifiedSession };

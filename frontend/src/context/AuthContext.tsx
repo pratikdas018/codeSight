@@ -11,6 +11,7 @@ import { hasSupabaseConfig, requireSupabase } from "../lib/supabase";
 import {
   hydrateSessionUser,
   resendSignupConfirmation,
+  restoreVerifiedSession,
   signInWithEmail,
   signOutSession,
   signUpWithEmail,
@@ -88,9 +89,8 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       }
     };
 
-    supabase.auth
-      .getSession()
-      .then(({ data }) => syncSession(data.session))
+    restoreVerifiedSession()
+      .then((restoredSession) => syncSession(restoredSession))
       .catch(() => {
         if (isMounted) {
           setIsLoading(false);

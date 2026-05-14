@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./supabase.types";
 
 type BrowserWindowWithElectronEnv = Window & {
@@ -48,10 +48,6 @@ const createElectronAuthStorage = () => {
   };
 };
 
-const globalForSupabase = globalThis as typeof globalThis & {
-  __codesightSupabase?: SupabaseClient<Database>;
-};
-
 export const createSupabaseClient = () => {
   const config = resolveSupabaseConfig();
 
@@ -66,6 +62,7 @@ export const createSupabaseClient = () => {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,
+      flowType: "pkce",
       storage: createElectronAuthStorage(),
       storageKey: "codesight.auth.token",
     },
@@ -75,6 +72,10 @@ export const createSupabaseClient = () => {
       },
     },
   });
+};
+
+const globalForSupabase = globalThis as typeof globalThis & {
+  __codesightSupabase?: ReturnType<typeof createSupabaseClient>;
 };
 
 export const supabase =
