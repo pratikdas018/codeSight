@@ -36,12 +36,13 @@ const mapHistoryRecord = (entry: {
       },
 });
 
-export const listExecutionHistory = async () => {
+export const listExecutionHistory = async (userId: string) => {
   const { data, error } = await requireSupabase()
     .from("execution_history")
     .select(
       "id, user_id, snippet_id, output, execution_time, created_at, snippet:snippets!execution_history_snippet_id_fkey(id, title, language, code)",
     )
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {

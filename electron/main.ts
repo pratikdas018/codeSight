@@ -1,4 +1,12 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  dialog,
+  ipcMain,
+  safeStorage,
+  shell,
+} from "electron";
 import type {
   MenuItemConstructorOptions,
   MessageBoxOptions,
@@ -56,6 +64,11 @@ interface LocalSnippetRecord {
 interface DesktopReleaseConfig {
   productionApiBaseUrl?: string;
   preferHostedApiInProduction?: boolean;
+}
+
+interface PersistedAuthValue {
+  mode: "safeStorage" | "plain";
+  value: string;
 }
 
 const shouldUseDevServer =
@@ -156,6 +169,8 @@ const getSnippetDirectory = () =>
   path.join(app.getPath("userData"), snippetDirectoryName);
 const getRecentFilesStorePath = () =>
   path.join(app.getPath("userData"), recentFilesStoreName);
+const getAuthStorageStorePath = () =>
+  path.join(app.getPath("userData"), "auth-storage.json");
 const getBackendUrl = () =>
   shouldUseDevServer
     ? devBackendUrl
@@ -279,6 +294,61 @@ const sendMenuAction = (action: MenuActionEvent) => {
 
 const setWindowTitle = (fileName?: string | null) => {
   mainWindow?.setTitle(normalizeWindowTitle(fileName));
+};
+
+const readAuthStorageStore = async () => {
+  const storePath = getAuthStorageStorePath();
+
+  try {
+    const raw = await fs.readFile(storePath, "utf8");
+    const parsed = JSON.parse(raw) as Record<string, PersistedAuthValue>;
+
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+
+    return parsed;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      return {};
+    }
+
+    logDesktopMessage("Unable to read auth storage store.", error);
+    return {};
+  }
+};
+
+const writeAuthStorageStore = async (
+  store: Record<string, PersistedAuthValue>,
+) => {
+  const storePath = getAuthStorageStorePath();
+  await fs.writeFile(storePath, JSON.stringify(store, null, 2), "utf8");
+};
+
+const encryptPersistedAuthValue = (value: string): PersistedAuthValue => {
+  if (safeStorage.isEncryptionAvailable()) {
+    return {
+      mode: "safeStorage",
+      value: safeStorage.encryptString(value).toString("base64"),
+    };
+  }
+
+  return {
+    mode: "plain",
+    value,
+  };
+};
+
+const decryptPersistedAuthValue = (entry: PersistedAuthValue | undefined) => {
+  if (!entry) {
+    return null;
+  }
+
+  if (entry.mode === "safeStorage") {
+    return safeStorage.decryptString(Buffer.from(entry.value, "base64"));
+  }
+
+  return entry.value;
 };
 
 const ensureSnippetDirectory = async () => {
@@ -478,7 +548,7 @@ const createSplashWindow = () => {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -540,7 +610,7 @@ const createMainWindow = async () => {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       devTools: true,
       spellcheck: false,
     },
@@ -955,6 +1025,37 @@ ipcMain.handle("desktop:open-local-snippet", async () => {
 });
 
 ipcMain.handle("desktop:get-recent-files", async () => readRecentFiles());
+
+ipcMain.handle("auth-storage:get", async (_event, key: string) => {
+  const store = await readAuthStorageStore();
+
+  try {
+    return decryptPersistedAuthValue(store[key]);
+  } catch (error) {
+    logDesktopMessage(`Unable to decrypt auth storage key "${key}".`, error);
+    delete store[key];
+    await writeAuthStorageStore(store);
+    return null;
+  }
+});
+
+ipcMain.handle(
+  "auth-storage:set",
+  async (_event, payload: { key: string; value: string }) => {
+    const store = await readAuthStorageStore();
+    store[payload.key] = encryptPersistedAuthValue(payload.value);
+    await writeAuthStorageStore(store);
+  },
+);
+
+ipcMain.handle("auth-storage:remove", async (_event, key: string) => {
+  const store = await readAuthStorageStore();
+
+  if (key in store) {
+    delete store[key];
+    await writeAuthStorageStore(store);
+  }
+});
 
 const getSenderWindow = (event: Electron.IpcMainInvokeEvent) =>
   BrowserWindow.fromWebContents(event.sender);

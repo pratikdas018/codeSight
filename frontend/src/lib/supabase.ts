@@ -7,6 +7,11 @@ type BrowserWindowWithElectronEnv = Window & {
       supabaseUrl?: string;
       supabaseAnonKey?: string;
     };
+    authStorage?: {
+      getItem: (key: string) => Promise<string | null>;
+      setItem: (key: string, value: string) => Promise<void>;
+      removeItem: (key: string) => Promise<void>;
+    };
   };
 };
 
@@ -28,6 +33,21 @@ const resolveSupabaseConfig = () => {
 
 export const hasSupabaseConfig = resolveSupabaseConfig() !== null;
 
+const createElectronAuthStorage = () => {
+  const authStorage = (window as BrowserWindowWithElectronEnv).electronAPI
+    ?.authStorage;
+
+  if (!authStorage) {
+    return undefined;
+  }
+
+  return {
+    getItem: (key: string) => authStorage.getItem(key),
+    setItem: (key: string, value: string) => authStorage.setItem(key, value),
+    removeItem: (key: string) => authStorage.removeItem(key),
+  };
+};
+
 const globalForSupabase = globalThis as typeof globalThis & {
   __codesightSupabase?: SupabaseClient<Database>;
 };
@@ -46,6 +66,8 @@ export const createSupabaseClient = () => {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,
+      storage: createElectronAuthStorage(),
+      storageKey: "codesight.auth.token",
     },
     global: {
       headers: {

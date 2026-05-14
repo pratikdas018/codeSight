@@ -1,5 +1,4 @@
 import {
-  type FormEvent,
   type MouseEvent,
   startTransition,
   useDeferredValue,
@@ -343,7 +342,11 @@ const buildPlainEnglishSummary = (lineText: string, language: SupportedLanguage)
   return "This line is part of the program flow. Use the highlighted variables and timeline to see its effect.";
 };
 
-export const HomePage = () => {
+interface HomePageProps {
+  onGlobalNotice?: (notice: Notice) => void;
+}
+
+export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     useState<WorkspaceTab>("explorer");
   const [activeRailSection, setActiveRailSection] =
@@ -381,19 +384,7 @@ export const HomePage = () => {
   const [recentFiles, setRecentFiles] = useState<RecentFileRecord[]>([]);
   const [runtimeHealth, setRuntimeHealth] =
     useState<RuntimeHealthSnapshot>(defaultRuntimeHealth);
-  const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const {
-    session,
-    user,
-    pendingConfirmationEmail,
-    isLoading: isAuthLoading,
-    isAuthenticating,
-    authenticate,
-    resendConfirmation,
-    logout,
-  } = useAuth();
+  const { user, logout } = useAuth();
   const isDesktop = Boolean(window.electronAPI?.env.isElectron);
 
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -577,12 +568,18 @@ export const HomePage = () => {
   };
 
   const refreshWorkspaceData = async () => {
+    if (!user) {
+      setSnippets([]);
+      setHistory([]);
+      return;
+    }
+
     setIsRefreshing(true);
 
     try {
       const [snippetList, historyList] = await Promise.all([
-        listSnippets(),
-        listExecutionHistory(),
+        listSnippets(user.id),
+        listExecutionHistory(user.id),
       ]);
 
       setSnippets(enrichSnippetsWithExecutionCounts(snippetList, historyList));
@@ -804,7 +801,7 @@ export const HomePage = () => {
   };
 
   useEffect(() => {
-    if (!session?.user || !user) {
+    if (!user) {
       setSnippets([]);
       setHistory([]);
       setCurrentSnippetId(null);
@@ -820,7 +817,7 @@ export const HomePage = () => {
             : "Unable to load account data.",
       });
     });
-  }, [session, user]);
+  }, [user]);
 
   const handleDesktopMenuAction = useEffectEvent((event: MenuActionEvent) => {
     switch (event.type) {
@@ -1106,9 +1103,7 @@ export const HomePage = () => {
     if (!user) {
       setNotice({
         tone: "error",
-        message: pendingConfirmationEmail
-          ? `Confirm ${pendingConfirmationEmail} from your inbox, then log in before saving snippets.`
-          : "Create an account or log in before saving snippets.",
+        message: "Your session expired. Log in again to save snippets.",
       });
       return;
     }
@@ -1149,7 +1144,7 @@ export const HomePage = () => {
     }
 
     try {
-      const snippet = await getSnippetById(snippetId);
+      const snippet = await getSnippetById(snippetId, user.id);
       stopPlayback();
       setLanguage(snippet.language);
       setCurrentSnippetId(snippet.id);
@@ -1213,46 +1208,10 @@ export const HomePage = () => {
     });
   };
 
-  const handleAuthenticate = async (
-    mode: "login" | "signup",
-    authEmail: string,
-    authPassword: string,
-  ) => {
-    try {
-      const result = await authenticate(mode, authEmail, authPassword);
-
-      if (result.status === "pending_confirmation") {
-        setAuthMode("login");
-        setNotice({
-          tone: "success",
-          message: `Account created for ${result.email}. Confirm the email from your inbox, then log in to save snippets.`,
-        });
-        return;
-      }
-
-      setNotice({
-        tone: "success",
-        message: `${mode === "signup" ? "Welcome" : "Welcome back"}, ${result.user.email}.`,
-      });
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
-          error instanceof Error ? error.message : "Authentication failed.",
-      });
-    }
-  };
-
-  const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await handleAuthenticate(authMode, email, password);
-    setPassword("");
-  };
-
   const handleLogout = async () => {
     try {
       await logout();
-      setNotice({
+      onGlobalNotice?.({
         tone: "success",
         message: "Signed out of your Supabase session.",
       });
@@ -1260,24 +1219,6 @@ export const HomePage = () => {
       setNotice({
         tone: "error",
         message: error instanceof Error ? error.message : "Unable to log out.",
-      });
-    }
-  };
-
-  const handleResendConfirmation = async () => {
-    try {
-      await resendConfirmation(email.trim() || undefined);
-      setNotice({
-        tone: "success",
-        message: `Confirmation email sent to ${email.trim() || pendingConfirmationEmail}.`,
-      });
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to resend confirmation email.",
       });
     }
   };
@@ -1850,83 +1791,22 @@ export const HomePage = () => {
                     </div>
                   ) : null}
 
-                  {user ? (
-                    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
-                      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Signed in</div>
-                      <div className="mt-2 text-sm text-white">{user.email}</div>
-                      <p className="mt-2 text-sm leading-6 text-slate-400">
-                        Snippets and execution history stay attached to this account.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleLogout();
-                        }}
-                        className="cs-button mt-4 rounded-xl px-3"
-                      >
-                        Log out
-                      </button>
-                    </div>
-                  ) : isAuthLoading ? (
-                    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4 text-sm text-slate-400">
-                      Restoring your session...
-                    </div>
-                  ) : (
-                    <form onSubmit={handleAuthSubmit} className="space-y-3 rounded-xl border border-white/8 bg-white/[0.02] p-4">
-                      <div className="flex rounded-full border border-white/8 bg-[#0a1627] p-1">
-                        {(["signup", "login"] as const).map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setAuthMode(mode)}
-                            className={clsx(
-                              "flex-1 rounded-full px-3 py-2 text-xs uppercase tracking-[0.16em] transition",
-                              authMode === mode
-                                ? "bg-white/[0.08] text-white"
-                                : "text-slate-500 hover:text-slate-300",
-                            )}
-                          >
-                            {mode}
-                          </button>
-                        ))}
-                      </div>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        placeholder="Email address"
-                        className="cs-input rounded-xl"
-                        required
-                      />
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        placeholder="Password"
-                        className="cs-input rounded-xl"
-                        required
-                        minLength={6}
-                      />
-                      <button
-                        type="submit"
-                        disabled={isAuthenticating || isAuthLoading}
-                        className="cs-button cs-button-primary w-full rounded-xl disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {isAuthLoading
-                          ? "Restoring session..."
-                          : isAuthenticating
-                            ? "Working..."
-                            : authMode === "signup"
-                              ? "Create account"
-                              : "Log in"}
-                      </button>
-                      {pendingConfirmationEmail ? (
-                        <div className="rounded-xl border border-amber-300/16 bg-amber-300/8 p-3 text-sm text-amber-100">
-                          Confirm {pendingConfirmationEmail} from your inbox before saving snippets.
-                        </div>
-                      ) : null}
-                    </form>
-                  )}
+                  <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
+                    <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Signed in</div>
+                    <div className="mt-2 text-sm text-white">{user?.email ?? "Authenticated user"}</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      This workspace is only available after a valid CodeSight session is restored.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleLogout();
+                      }}
+                      className="cs-button mt-4 rounded-xl px-3"
+                    >
+                      Log out
+                    </button>
+                  </div>
                 </section>
               )}
                 </div>

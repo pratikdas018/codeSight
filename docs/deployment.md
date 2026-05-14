@@ -82,12 +82,15 @@ Required Vercel env vars:
 ```env
 VITE_SUPABASE_URL=https://gtchouaqbcwawonomqgt.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_PeVJKSu36aYGyy0Pvp1cow_LZTh0F6Q
-VITE_API_BASE_URL=https://api.codesight.app
+VITE_API_BASE_URL=https://codesight-aqe8.onrender.com
+VITE_SITE_URL=https://code-sight-frontend.vercel.app
+VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED=true
 ```
 
 Notes:
 
 - `vercel.json` rewrites every route to `index.html` so client-side routing works after refresh.
+- The frontend now expects email confirmations to land on `/auth/confirm`, so Vercel must serve that path through the SPA rewrite.
 - Immutable cache headers are applied to Vite assets under `/assets`.
 - HTTPS is handled by Vercel automatically.
 
@@ -168,8 +171,15 @@ Required Supabase settings:
 
 - Enable Email auth
 - Decide whether email confirmation is required
+- Set `Site URL` to `https://code-sight-frontend.vercel.app`
+- Add `https://code-sight-frontend.vercel.app/auth/confirm` to Redirect URLs
+- Add `http://127.0.0.1:5180/auth/confirm` and `http://localhost:5180/auth/confirm` for local verification links during development
 - Keep only the anon key in the frontend
 - Never use the service role key in the renderer or Electron preload
+
+If you disable Confirm email in Supabase Auth, also set `VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED=false` for the frontend/Electron renderer so the signup UX switches to instant account access messaging.
+
+If you customize the Supabase confirmation email template and use `redirectTo`, use `{{ .RedirectTo }}` instead of `{{ .SiteURL }}` in the confirmation link. The app already sends the full `/auth/confirm` path in `emailRedirectTo`, so do not append `/auth/confirm` a second time in the template.
 
 ## Electron Packaging
 

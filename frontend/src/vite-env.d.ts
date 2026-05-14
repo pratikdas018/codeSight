@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
+  readonly VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED?: string;
+  readonly VITE_SITE_URL?: string;
 }
 
 interface ImportMeta {
@@ -56,8 +58,15 @@ interface Window {
       backendUrl: string;
       supabaseUrl?: string;
       supabaseAnonKey?: string;
+      supabaseEmailConfirmationRequired?: string;
+      siteUrl?: string;
       platform: string;
       version: string;
+    };
+    authStorage: {
+      getItem: (key: string) => Promise<string | null>;
+      setItem: (key: string, value: string) => Promise<void>;
+      removeItem: (key: string) => Promise<void>;
     };
     runCode: (payload: {
       code: string;

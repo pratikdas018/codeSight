@@ -17,10 +17,11 @@ const mapSnippet = (snippet: {
   createdAt: snippet.created_at,
 });
 
-export const listSnippets = async () => {
+export const listSnippets = async (userId: string) => {
   const { data, error } = await requireSupabase()
     .from("snippets")
     .select("id, user_id, title, language, code, created_at")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -30,11 +31,12 @@ export const listSnippets = async () => {
   return data.map(mapSnippet);
 };
 
-export const getSnippetById = async (snippetId: string) => {
+export const getSnippetById = async (snippetId: string, userId: string) => {
   const { data, error } = await requireSupabase()
     .from("snippets")
     .select("id, user_id, title, language, code, created_at")
     .eq("id", snippetId)
+    .eq("user_id", userId)
     .single();
 
   if (error) {

@@ -52,6 +52,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       setIsLoading(false);
       setUser(null);
       setSession(null);
+      setPendingConfirmationEmail(null);
 
       return () => {
         isMounted = false;
@@ -72,6 +73,13 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
         if (isMounted) {
           setUser(nextUser);
+          if (nextSession) {
+            setPendingConfirmationEmail(null);
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setUser(null);
         }
       } finally {
         if (isMounted) {

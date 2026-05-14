@@ -21,8 +21,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
       process.env.CODESIGHT_BACKEND_URL ?? "http://127.0.0.1:4000",
     supabaseUrl: process.env.VITE_SUPABASE_URL,
     supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY,
+    supabaseEmailConfirmationRequired:
+      process.env.VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED,
+    siteUrl: process.env.VITE_SITE_URL,
     platform: process.platform,
     version: process.env.npm_package_version ?? "1.0.0",
+  },
+  authStorage: {
+    getItem: (key: string) => ipcRenderer.invoke("auth-storage:get", key),
+    setItem: (key: string, value: string) =>
+      ipcRenderer.invoke("auth-storage:set", { key, value }),
+    removeItem: (key: string) => ipcRenderer.invoke("auth-storage:remove", key),
   },
   runCode: (payload: { code: string; language: SupportedLanguage; stdin?: string }) =>
     ipcRenderer.invoke("desktop:run-code", payload),
