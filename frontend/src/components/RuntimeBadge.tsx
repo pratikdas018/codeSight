@@ -11,9 +11,9 @@ interface RuntimeBadgeProps {
 }
 
 const toneClasses: Record<RuntimeTone, string> = {
-  neutral: "border-white/8 bg-white/[0.03] text-slate-300",
-  info: "border-cyan-300/16 bg-cyan-300/10 text-cyan-100",
-  success: "border-emerald-300/18 bg-emerald-300/10 text-emerald-100",
+  neutral: "border-[#1f1f1f] bg-[#0a0a0a] text-[#b9ccb2]",
+  info: "border-[#203924] bg-[#0d140d] text-[#dfffe5]",
+  success: "border-[#203924] bg-[#0d140d] text-[#72ff70]",
   warning: "border-amber-300/18 bg-amber-300/10 text-amber-100",
   error: "border-rose-300/18 bg-rose-300/10 text-rose-100",
 };

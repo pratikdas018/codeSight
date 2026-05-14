@@ -7,7 +7,7 @@
     <style>
       :root {
         color-scheme: dark;
-        font-family: "Inter", "Segoe UI", sans-serif;
+        font-family: "Geist", "Segoe UI", sans-serif;
       }
 
       * {
@@ -26,10 +26,10 @@
         display: grid;
         grid-template-rows: auto 1fr;
         background:
-          radial-gradient(circle at top left, rgba(34, 211, 238, 0.2), transparent 24%),
-          radial-gradient(circle at bottom right, rgba(99, 102, 241, 0.22), transparent 28%),
-          rgba(11, 14, 20, 0.96);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+          radial-gradient(circle at top left, rgba(0, 255, 65, 0.18), transparent 24%),
+          radial-gradient(circle at 86% 18%, rgba(114, 255, 112, 0.08), transparent 22%),
+          linear-gradient(180deg, rgba(9, 12, 9, 0.98), rgba(5, 6, 5, 0.98));
+        border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 18px;
         overflow: hidden;
       }
@@ -41,15 +41,15 @@
         justify-content: space-between;
         padding: 0 0 0 16px;
         -webkit-app-region: drag;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-        background: rgba(11, 14, 20, 0.35);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(11, 14, 11, 0.45);
       }
 
       .titlebar__label {
-        color: rgba(225, 226, 235, 0.72);
+        color: rgba(164, 185, 166, 0.72);
         font-size: 12px;
         font-weight: 600;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
       }
 
@@ -64,7 +64,7 @@
         height: 42px;
         border: 0;
         background: transparent;
-        color: rgba(225, 226, 235, 0.86);
+        color: rgba(232, 255, 233, 0.86);
         font-size: 15px;
         cursor: pointer;
         transition: background 140ms ease, color 140ms ease;
@@ -86,27 +86,58 @@
       }
 
       .panel {
-        width: 300px;
+        width: 320px;
         padding: 28px 24px;
-        border-radius: 12px;
-        background: rgba(21, 25, 33, 0.92);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+        border-radius: 18px;
+        background: rgba(15, 18, 15, 0.94);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+      }
+
+      .brand-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .mark {
+        position: relative;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid rgba(114, 255, 112, 0.16);
+        background:
+          radial-gradient(circle at 28% 26%, rgba(0, 255, 65, 0.2), transparent 36%),
+          linear-gradient(145deg, #0f1710 0%, #060806 100%);
+        box-shadow: 0 0 32px rgba(0, 255, 65, 0.08);
+      }
+
+      .mark svg {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        z-index: 1;
       }
 
       .brand {
         font-size: 28px;
         font-weight: 700;
-        letter-spacing: 0;
-        background: linear-gradient(90deg, #22d3ee, #6366f1);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+        letter-spacing: -0.05em;
+        color: #ebffe2;
+      }
+
+      .eyebrow {
+        margin-top: 4px;
+        color: #6f8a71;
+        font-size: 10px;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
       }
 
       .copy {
         margin-top: 10px;
-        color: rgba(225, 226, 235, 0.82);
+        color: rgba(215, 226, 215, 0.78);
         font-size: 14px;
         line-height: 1.6;
       }
@@ -125,7 +156,7 @@
         width: 38%;
         height: 100%;
         border-radius: inherit;
-        background: linear-gradient(90deg, #22d3ee, #6366f1);
+        background: linear-gradient(90deg, #d9ffe2, #72ff70, #00e639);
         animation: pulse 1.2s ease-in-out infinite;
       }
 
@@ -157,7 +188,46 @@
       </div>
       <div class="content">
         <div class="panel">
-          <div class="brand">CodeSight</div>
+          <div class="brand-row">
+            <div class="mark" aria-hidden="true">
+              <svg viewBox="0 0 64 64">
+                <defs>
+                  <linearGradient id="codesight-mark" x1="0%" x2="100%" y1="0%" y2="100%">
+                    <stop offset="0%" stop-color="#d9ffe2"></stop>
+                    <stop offset="55%" stop-color="#72ff70"></stop>
+                    <stop offset="100%" stop-color="#00e639"></stop>
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M18 16.5h17.5c6 0 9.5 3.2 9.5 8 0 2.6-1.2 4.7-3.4 6.1 3.2 1.5 5.1 4.2 5.1 7.9 0 6.1-4.6 10-12 10H18z"
+                  fill="none"
+                  stroke="url(#codesight-mark)"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="4.5"
+                ></path>
+                <path
+                  d="M18 31h17"
+                  fill="none"
+                  stroke="url(#codesight-mark)"
+                  stroke-linecap="round"
+                  stroke-width="4.5"
+                ></path>
+                <path
+                  d="M39.5 18 49 8.5"
+                  fill="none"
+                  stroke="#d9ffe2"
+                  stroke-linecap="round"
+                  stroke-width="3"
+                ></path>
+                <circle cx="49.5" cy="8.5" r="3.5" fill="#72ff70"></circle>
+              </svg>
+            </div>
+            <div>
+              <div class="brand">CodeSight</div>
+              <div class="eyebrow">Visual Debugging Workspace</div>
+            </div>
+          </div>
           <div class="copy">
             Preparing the workbench, editor, and runtime so the desktop app opens ready to code.
           </div>

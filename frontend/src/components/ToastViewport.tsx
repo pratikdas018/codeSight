@@ -38,7 +38,7 @@ export const ToastViewport = ({
             className={clsx(
               "rounded-[24px] border px-4 py-3 shadow-[0_22px_48px_rgba(0,0,0,0.4)] backdrop-blur-2xl",
               notice.tone === "success"
-                ? "border-cyan-300/22 bg-[linear-gradient(180deg,rgba(8,31,39,0.95),rgba(8,22,36,0.95))] text-cyan-50"
+                ? "border-[#203924] bg-[linear-gradient(180deg,rgba(9,18,10,0.96),rgba(6,10,6,0.98))] text-[#dfffe5]"
                 : "border-rose-400/25 bg-[linear-gradient(180deg,rgba(45,12,20,0.96),rgba(26,9,14,0.96))] text-rose-100",
             )}
           >
@@ -47,7 +47,7 @@ export const ToastViewport = ({
                 className={clsx(
                   "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border",
                   notice.tone === "success"
-                    ? "border-cyan-300/22 bg-cyan-300/10 text-cyan-100"
+                    ? "border-[#203924] bg-[#0d140d] text-[#72ff70]"
                     : "border-rose-300/20 bg-rose-300/10 text-rose-100",
                 )}
               >
@@ -59,7 +59,7 @@ export const ToastViewport = ({
               <button
                 type="button"
                 onClick={onDismiss}
-                className="rounded-2xl px-2 py-1 text-xs uppercase tracking-[0.12em] text-white/70 transition hover:bg-white/10 hover:text-white"
+                className="rounded-2xl px-2 py-1 text-xs uppercase tracking-[0.12em] text-[var(--cs-text-subtle)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--cs-text)]"
               >
                 Close
               </button>

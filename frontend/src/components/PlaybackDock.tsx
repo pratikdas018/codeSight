@@ -31,14 +31,14 @@ export const PlaybackDock = ({
 
   return (
     <div className="fixed inset-x-0 bottom-12 z-50 px-3 sm:px-4 lg:px-6">
-      <div className="mx-auto max-w-[1900px] rounded-[1.2rem] border border-white/8 bg-[rgba(6,13,23,0.88)] px-3 py-3 shadow-[0_18px_44px_rgba(0,0,0,0.3)] backdrop-blur-xl">
+      <div className="mx-auto max-w-[1900px] rounded-[1.2rem] border border-[#1f1f1f] bg-[rgba(10,10,10,0.94)] px-3 py-3 shadow-[0_18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 font-mono text-[11px] text-slate-300">
+              <span className="rounded-full border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-1.5 font-mono text-[11px] text-[#dfffe5]">
                 {hasTrace ? `Step ${currentStepIndex + 1}/${stepCount}` : "No trace"}
               </span>
-              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 font-mono text-[11px] text-slate-400">
+              <span className="rounded-full border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-1.5 font-mono text-[11px] text-[#84967e]">
                 {activeLine ? `Line ${activeLine}` : "Waiting"}
               </span>
             </div>
@@ -53,7 +53,7 @@ export const PlaybackDock = ({
                 onChange={(event) => onStepScrub(Number(event.target.value))}
                 disabled={!hasTrace}
                 className={clsx(
-                  "h-2.5 w-full cursor-pointer appearance-none rounded-full accent-cyan-300",
+                  "h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#00ff41]",
                   hasTrace ? "opacity-100" : "cursor-not-allowed opacity-40",
                 )}
               />
@@ -95,7 +95,7 @@ export const PlaybackDock = ({
             >
               <span className="material-symbols-outlined text-[18px]">skip_next</span>
             </button>
-            <label className="ml-1 flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
+            <label className="ml-1 flex items-center gap-2 rounded-xl border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-2 text-xs text-[#84967e]">
               <span>Speed</span>
               <input
                 type="range"
@@ -104,9 +104,9 @@ export const PlaybackDock = ({
                 step="0.25"
                 value={playbackRate}
                 onChange={(event) => onPlaybackRateChange(Number(event.target.value))}
-                className="w-24 accent-cyan-300"
+                className="w-24 accent-[#00ff41]"
               />
-              <span className="w-10 text-right font-mono text-slate-200">
+              <span className="w-10 text-right font-mono text-[#dfffe5]">
                 {playbackRate.toFixed(2)}x
               </span>
             </label>

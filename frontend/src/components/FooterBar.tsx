@@ -42,7 +42,7 @@ export const FooterBar = ({
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.24, ease: "easeOut" }}
-    className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[rgba(5,12,21,0.96)] backdrop-blur-xl"
+    className="fixed inset-x-0 bottom-0 z-40 border-t border-[#1f1f1f] bg-[rgba(7,7,7,0.98)] backdrop-blur-xl"
   >
     <div className="mx-auto flex min-h-10 max-w-[1900px] items-center justify-between gap-3 px-3 sm:px-4 lg:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
@@ -98,7 +98,7 @@ export const FooterBar = ({
         <button
           type="button"
           onClick={onThemeToggle}
-          className="flex h-8 items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-2.5 text-[11px] font-medium text-slate-300 transition hover:border-white/14 hover:text-white"
+          className="flex h-8 items-center gap-2 rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-2.5 text-[11px] font-medium text-[var(--cs-text-muted)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)]"
           aria-label="Toggle theme"
         >
           <span className="material-symbols-outlined text-[14px]">
@@ -111,7 +111,7 @@ export const FooterBar = ({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex h-8 items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-2.5 text-[11px] font-medium text-slate-300 transition hover:border-cyan-300/20 hover:text-white"
+          className="flex h-8 items-center gap-2 rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-2.5 text-[11px] font-medium text-[var(--cs-text-muted)] transition hover:border-[rgba(114,255,112,0.2)] hover:text-[var(--cs-text)]"
           aria-label="Open settings"
         >
           <span className="material-symbols-outlined text-[14px]">settings</span>

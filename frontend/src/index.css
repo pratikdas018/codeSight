@@ -1,47 +1,55 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:FILL@0..1&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:FILL@0..1&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color: #e8f4ff;
+  color: #e6ffe8;
   color-scheme: dark;
-  font-family: "Inter", "Geist", "SF Pro Display", "Segoe UI", sans-serif;
-  background-color: #07111f;
-  --cs-bg: #07111f;
-  --cs-bg-elevated: rgba(9, 19, 34, 0.88);
-  --cs-bg-panel: rgba(15, 27, 46, 0.72);
-  --cs-border: rgba(130, 199, 255, 0.16);
-  --cs-border-strong: rgba(105, 232, 255, 0.18);
-  --cs-text: #e8f4ff;
-  --cs-text-muted: #8ca2bb;
-  --cs-glow: #63e7ff;
-  --cs-glow-strong: #2ba8ff;
-  --cs-mint: #59f7cb;
-  --cs-shadow: 0 10px 30px rgba(3, 10, 24, 0.22);
-  --cs-body-start: #08111e;
-  --cs-body-mid: #07111f;
-  --cs-body-end: #09131f;
-  --cs-body-spot: rgba(64, 200, 255, 0.08);
-  --cs-body-glow: rgba(99, 231, 255, 0.05);
+  font-family: "Geist", "Segoe UI", sans-serif;
+  background-color: #050505;
+  --cs-bg: #050505;
+  --cs-bg-elevated: rgba(9, 11, 9, 0.94);
+  --cs-bg-panel: rgba(16, 18, 16, 0.86);
+  --cs-bg-card: rgba(22, 24, 22, 0.94);
+  --cs-surface-soft: rgba(12, 16, 12, 0.88);
+  --cs-border: rgba(31, 31, 31, 1);
+  --cs-border-strong: rgba(0, 255, 65, 0.18);
+  --cs-text: #e5e2e1;
+  --cs-text-muted: #b9ccb2;
+  --cs-text-subtle: #84967e;
+  --cs-primary: #00ff41;
+  --cs-primary-soft: rgba(0, 255, 65, 0.12);
+  --cs-primary-bright: #72ff70;
+  --cs-secondary: #10b981;
+  --cs-shadow: 0 20px 45px rgba(0, 0, 0, 0.42);
+  --cs-body-start: #050505;
+  --cs-body-mid: #090b09;
+  --cs-body-end: #050505;
+  --cs-body-spot: rgba(0, 255, 65, 0.11);
+  --cs-body-glow: rgba(0, 255, 65, 0.06);
 }
 
 :root[data-codesight-theme="graphite"] {
-  --cs-bg: #081018;
-  --cs-bg-elevated: rgba(11, 19, 29, 0.88);
-  --cs-bg-panel: rgba(18, 29, 40, 0.74);
-  --cs-border: rgba(165, 196, 222, 0.14);
-  --cs-border-strong: rgba(111, 208, 255, 0.16);
-  --cs-text-muted: #95a9be;
-  --cs-glow: #72d1ff;
-  --cs-glow-strong: #3aa0d8;
-  --cs-shadow: 0 10px 30px rgba(3, 10, 24, 0.28);
-  --cs-body-start: #0b1118;
-  --cs-body-mid: #081018;
-  --cs-body-end: #0d1721;
-  --cs-body-spot: rgba(92, 150, 204, 0.07);
-  --cs-body-glow: rgba(105, 200, 255, 0.045);
+  --cs-bg: #060906;
+  --cs-bg-elevated: rgba(12, 15, 12, 0.94);
+  --cs-bg-panel: rgba(19, 22, 19, 0.86);
+  --cs-bg-card: rgba(25, 29, 25, 0.94);
+  --cs-surface-soft: rgba(13, 16, 13, 0.88);
+  --cs-border: rgba(42, 46, 42, 1);
+  --cs-border-strong: rgba(114, 255, 112, 0.16);
+  --cs-text-muted: #a7b7a1;
+  --cs-text-subtle: #7c8c77;
+  --cs-primary: #72ff70;
+  --cs-primary-soft: rgba(114, 255, 112, 0.12);
+  --cs-primary-bright: #dfffe5;
+  --cs-shadow: 0 20px 45px rgba(0, 0, 0, 0.48);
+  --cs-body-start: #070907;
+  --cs-body-mid: #0b0d0b;
+  --cs-body-end: #070907;
+  --cs-body-spot: rgba(114, 255, 112, 0.09);
+  --cs-body-glow: rgba(114, 255, 112, 0.05);
 }
 
 * {
@@ -79,17 +87,17 @@ body::after {
 }
 
 body::before {
-  opacity: 0.16;
+  opacity: 0.18;
   background-image:
-    linear-gradient(to right, rgba(124, 154, 186, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(124, 154, 186, 0.08) 1px, transparent 1px);
+    linear-gradient(to right, rgba(31, 31, 31, 0.75) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(31, 31, 31, 0.75) 1px, transparent 1px);
   background-size: 72px 72px;
   mask-image: radial-gradient(circle at center, black 45%, transparent 92%);
 }
 
 body::after {
   background: radial-gradient(circle at 20% 22%, var(--cs-body-glow), transparent 18%);
-  filter: blur(18px);
+  filter: blur(22px);
 }
 
 button,
@@ -104,8 +112,8 @@ button {
 }
 
 ::selection {
-  background: rgba(99, 231, 255, 0.22);
-  color: #f5fbff;
+  background: rgba(0, 255, 65, 0.22);
+  color: #f7fff7;
 }
 
 .material-symbols-outlined {
@@ -125,7 +133,7 @@ button {
 
 .workbench-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 179, 214, 0.32) transparent;
+  scrollbar-color: rgba(0, 255, 65, 0.24) transparent;
 }
 
 .workbench-scrollbar::-webkit-scrollbar {
@@ -140,43 +148,44 @@ button {
 .workbench-scrollbar::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(148, 179, 214, 0.25);
+  background: rgba(0, 255, 65, 0.2);
   background-clip: padding-box;
 }
 
 .current-execution-line {
-  background: linear-gradient(90deg, rgba(99, 231, 255, 0.16), rgba(43, 168, 255, 0.05));
-  border-left: 2px solid var(--cs-glow);
+  background: linear-gradient(90deg, rgba(0, 255, 65, 0.13), rgba(0, 255, 65, 0.02));
+  border-left: 2px solid var(--cs-primary);
+  box-shadow: inset 0 0 14px rgba(0, 255, 65, 0.08);
 }
 
 .current-execution-gutter {
-  border-left: 3px solid var(--cs-glow);
+  border-left: 3px solid var(--cs-primary);
   margin-left: 3px;
 }
 
 .codesight-explanation-widget {
   max-width: 320px;
   pointer-events: none;
-  border: 1px solid rgba(99, 231, 255, 0.16);
-  background: rgba(9, 20, 34, 0.94);
-  color: #e8f4ff;
+  border: 1px solid rgba(0, 255, 65, 0.18);
+  background: rgba(10, 13, 10, 0.96);
+  color: #e6ffe8;
   border-radius: 14px;
   padding: 12px 14px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34), 0 0 18px rgba(0, 255, 65, 0.06);
   backdrop-filter: blur(12px);
 }
 
 .codesight-explanation-widget-focus {
-  box-shadow: 0 0 0 1px rgba(99, 231, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.12), 0 0 24px rgba(0, 255, 65, 0.08);
 }
 
 .codesight-explanation-title {
   margin: 0;
-  font-family: "Geist", "Inter", sans-serif;
+  font-family: "Geist", sans-serif;
   font-size: 10px;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: #86a6c8;
+  color: #84967e;
 }
 
 .codesight-explanation-body {
@@ -188,8 +197,8 @@ button {
 @layer components {
   .cs-panel {
     @apply relative overflow-hidden rounded-2xl border backdrop-blur-xl;
-    border-color: rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--cs-border);
+    background: rgba(16, 18, 16, 0.88);
     box-shadow: var(--cs-shadow);
   }
 
@@ -198,49 +207,58 @@ button {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    border: 1px solid rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.02);
     pointer-events: none;
   }
 
   .cs-panel-strong {
-    background: rgba(10, 21, 36, 0.84);
+    background: linear-gradient(180deg, rgba(18, 20, 18, 0.96), rgba(10, 10, 10, 0.98));
   }
 
   .cs-chip {
-    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-slate-300;
-    border-color: rgba(255, 255, 255, 0.08);
-    background: rgba(11, 22, 37, 0.84);
+    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.18em];
+    border-color: var(--cs-border);
+    color: var(--cs-text-muted);
+    background: rgba(10, 10, 10, 0.92);
   }
 
   .cs-input {
-    @apply w-full rounded-xl border px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500;
-    border-color: rgba(255, 255, 255, 0.08);
-    background: rgba(10, 22, 39, 0.88);
+    @apply w-full rounded-xl border px-4 py-3 text-sm outline-none transition;
+    border-color: var(--cs-border);
+    color: var(--cs-text);
+    background: rgba(10, 10, 10, 0.96);
+  }
+
+  .cs-input::placeholder {
+    color: var(--cs-text-subtle);
   }
 
   .cs-input:focus {
-    border-color: rgba(99, 231, 255, 0.24);
-    box-shadow: 0 0 0 1px rgba(99, 231, 255, 0.1);
+    border-color: rgba(47, 83, 51, 1);
+    box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.1);
   }
 
   .cs-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium text-slate-100 transition;
-    border-color: rgba(255, 255, 255, 0.08);
-    background: rgba(12, 22, 37, 0.84);
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition;
+    border-color: var(--cs-border);
+    color: var(--cs-text);
+    background: rgba(10, 10, 10, 0.96);
   }
 
   .cs-button:hover {
-    border-color: rgba(255, 255, 255, 0.14);
-    color: #f8fdff;
+    border-color: rgba(42, 46, 42, 1);
+    color: var(--cs-primary-bright);
+    box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.05);
   }
 
   .cs-button-primary {
-    @apply border-transparent text-[#04111d];
-    background: linear-gradient(135deg, #8cecff 0%, #63e7ff 100%);
-    box-shadow: none;
+    @apply border-transparent;
+    color: #041005;
+    background: linear-gradient(135deg, #72ff70 0%, #00ff41 100%);
+    box-shadow: 0 0 24px rgba(0, 255, 65, 0.16);
   }
 
   .cs-button-primary:hover {
-    filter: brightness(1.02);
+    filter: brightness(1.03);
   }
 }

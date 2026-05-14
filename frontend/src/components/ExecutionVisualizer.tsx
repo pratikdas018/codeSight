@@ -47,17 +47,30 @@ const sectionOrder: Array<{
   },
 ];
 
+const surfacePanelClass =
+  "rounded-[1.45rem] border border-[var(--cs-border)] bg-[rgba(12,15,12,0.82)] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.22)]";
+
+const innerPanelClass =
+  "rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)]";
+
+const chipBaseClass =
+  "rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.14em]";
+
 const changeToneClasses: Record<string, string> = {
-  added: "border-emerald-300/20 bg-emerald-300/8 text-emerald-100",
-  updated: "border-cyan-300/20 bg-cyan-300/8 text-cyan-100",
-  unchanged: "border-white/8 bg-[#0a1524] text-slate-300",
+  added: "border-[rgba(114,255,112,0.22)] bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]",
+  updated:
+    "border-[rgba(114,255,112,0.18)] bg-[rgba(114,255,112,0.08)] text-[var(--cs-primary-soft)]",
+  unchanged:
+    "border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] text-[var(--cs-text-muted)]",
   removed: "border-rose-300/20 bg-rose-300/8 text-rose-100",
 };
 
 const executionStatusTone: Record<string, string> = {
-  queued: "border-white/8 bg-white/[0.03] text-slate-300",
-  running: "border-cyan-300/18 bg-cyan-300/10 text-cyan-100",
-  completed: "border-emerald-300/18 bg-emerald-300/10 text-emerald-100",
+  queued: "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
+  running:
+    "border-[rgba(114,255,112,0.18)] bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]",
+  completed:
+    "border-[rgba(114,255,112,0.18)] bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]",
   compile_error: "border-amber-300/18 bg-amber-300/10 text-amber-100",
   runtime_error: "border-rose-300/18 bg-rose-300/10 text-rose-100",
   timed_out: "border-rose-300/18 bg-rose-300/10 text-rose-100",
@@ -74,15 +87,20 @@ const VariableStateList = memo(
     helper: string;
     variables: ReturnType<typeof createVisualizationModel>["variables"];
   }) => (
-    <section className="rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4">
+    <section className={surfacePanelClass}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
             {sectionTitle}
           </div>
-          <p className="mt-1 text-sm text-slate-400">{helper}</p>
+          <p className="mt-1 text-sm text-[var(--cs-text-muted)]">{helper}</p>
         </div>
-        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-400">
+        <span
+          className={clsx(
+            chipBaseClass,
+            "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
+          )}
+        >
           {variables.length}
         </span>
       </div>
@@ -90,7 +108,7 @@ const VariableStateList = memo(
       <LayoutGroup>
         <div className="mt-4 space-y-2.5">
           {variables.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm leading-6 text-slate-400">
+            <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
               Variables appear here as soon as the trace captures runtime state.
             </div>
           ) : (
@@ -106,9 +124,9 @@ const VariableStateList = memo(
                     isChanged
                       ? {
                           boxShadow: [
-                            "0 0 0 rgba(99,231,255,0)",
-                            "0 10px 28px rgba(99,231,255,0.12)",
-                            "0 0 0 rgba(99,231,255,0)",
+                            "0 0 0 rgba(114,255,112,0)",
+                            "0 12px 30px rgba(114,255,112,0.12)",
+                            "0 0 0 rgba(114,255,112,0)",
                           ],
                         }
                       : {}
@@ -123,24 +141,24 @@ const VariableStateList = memo(
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate font-medium text-white">
+                        <span className="truncate font-medium text-[var(--cs-text)]">
                           {variable.name}
                         </span>
-                        <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                        <span className="rounded-full border border-[rgba(255,255,255,0.04)] bg-[rgba(255,255,255,0.03)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-muted)]">
                           {variable.valueType}
                         </span>
                       </div>
-                      <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                      <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                         {variable.scope}
                       </div>
                     </div>
 
-                    <span className="rounded-full border border-white/8 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                    <span className="rounded-full border border-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-muted)]">
                       {variable.change}
                     </span>
                   </div>
 
-                  <div className="mt-3 rounded-xl border border-white/6 bg-[#07111f]/90 px-3 py-2.5 font-mono text-xs leading-6 text-slate-100">
+                  <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5 font-mono text-xs leading-6 text-[var(--cs-text)]">
                     {variable.currentValue}
                   </div>
 
@@ -150,13 +168,13 @@ const VariableStateList = memo(
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
-                        className="mt-2.5 flex items-center gap-2 text-[11px] text-slate-400"
+                        className="mt-2.5 flex items-center gap-2 text-[11px] text-[var(--cs-text-muted)]"
                       >
-                        <span className="font-mono text-slate-500">
+                        <span className="font-mono text-[var(--cs-text-subtle)]">
                           {variable.previousValue}
                         </span>
-                        <span className="text-cyan-200">to</span>
-                        <span className="font-mono text-slate-200">
+                        <span className="text-[var(--cs-primary-bright)]">to</span>
+                        <span className="font-mono text-[var(--cs-text)]">
                           {variable.currentValue}
                         </span>
                       </motion.div>
@@ -180,24 +198,29 @@ const StackFramesPanel = memo(
   }: {
     frames: ReturnType<typeof createVisualizationModel>["stackFrames"];
   }) => (
-    <section className="rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4">
+    <section className={surfacePanelClass}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
             Call Stack
           </div>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
             Active frame first, with local variables close at hand.
           </p>
         </div>
-        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-400">
+        <span
+          className={clsx(
+            chipBaseClass,
+            "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
+          )}
+        >
           {frames.length}
         </span>
       </div>
 
       <div className="mt-4 space-y-3">
         {frames.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm leading-6 text-slate-400">
+          <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
             Function frames show up here once the runtime enters a traced scope.
           </div>
         ) : (
@@ -210,26 +233,26 @@ const StackFramesPanel = memo(
               className={clsx(
                 "rounded-2xl border px-3.5 py-3",
                 frame.isActive
-                  ? "border-cyan-300/24 bg-cyan-300/8"
-                  : "border-white/8 bg-[#0a1524]",
+                  ? "border-[rgba(114,255,112,0.24)] bg-[rgba(114,255,112,0.08)]"
+                  : "border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)]",
               )}
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="font-medium text-white">
+                  <div className="font-medium text-[var(--cs-text)]">
                     {frame.isGlobal ? "global scope" : `${frame.name}()`}
                   </div>
-                  <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                  <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                     {frame.locals.length} local{frame.locals.length === 1 ? "" : "s"}
                   </div>
                 </div>
 
                 <span
                   className={clsx(
-                    "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]",
+                    chipBaseClass,
                     frame.isActive
-                      ? "border-cyan-300/20 bg-cyan-300/12 text-cyan-100"
-                      : "border-white/8 bg-white/[0.03] text-slate-400",
+                      ? "border-[rgba(114,255,112,0.2)] bg-[rgba(114,255,112,0.12)] text-[var(--cs-primary-bright)]"
+                      : "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
                   )}
                 >
                   {frame.isActive ? "active" : frame.isGlobal ? "root" : "waiting"}
@@ -238,24 +261,24 @@ const StackFramesPanel = memo(
 
               <div className="mt-3 space-y-2">
                 {frame.locals.length === 0 ? (
-                  <div className="rounded-xl border border-white/6 bg-[#07111f]/90 px-3 py-2 text-xs text-slate-500">
+                  <div className="rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2 text-xs text-[var(--cs-text-subtle)]">
                     No local variables at this step.
                   </div>
                 ) : (
                   frame.locals.map((local) => (
                     <div
                       key={`${frame.id}-${local.id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-white/6 bg-[#07111f]/90 px-3 py-2"
+                      className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2"
                     >
                       <div className="min-w-0">
-                        <div className="truncate font-mono text-xs text-slate-200">
+                        <div className="truncate font-mono text-xs text-[var(--cs-text)]">
                           {local.name}
                         </div>
-                        <div className="mt-0.5 text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                        <div className="mt-0.5 text-[11px] uppercase tracking-[0.14em] text-[var(--cs-text-subtle)]">
                           {local.valueType}
                         </div>
                       </div>
-                      <div className="max-w-[12rem] truncate font-mono text-xs text-slate-400">
+                      <div className="max-w-[12rem] truncate font-mono text-xs text-[var(--cs-text-muted)]">
                         {local.currentValue}
                       </div>
                     </div>
@@ -280,19 +303,19 @@ const MemoryPanel = memo(
     ReturnType<typeof createVisualizationModel>,
     "arrays" | "heapNodes"
   >) => (
-    <section className="rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4">
+    <section className={surfacePanelClass}>
       <div>
-        <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+        <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
           Memory View
         </div>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
           Arrays, objects, and references stay compact so the editor can remain primary.
         </p>
       </div>
 
       <div className="mt-4 space-y-3">
         {arrays.length === 0 && heapNodes.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm leading-6 text-slate-400">
+          <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
             Composite values like arrays and objects render here as soon as they appear.
           </div>
         ) : null}
@@ -301,12 +324,12 @@ const MemoryPanel = memo(
           <motion.div
             key={array.id}
             layout
-            className="rounded-2xl border border-white/8 bg-[#0a1524] p-3"
+            className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] p-3"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="font-medium text-white">{array.name}</div>
-                <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                <div className="font-medium text-[var(--cs-text)]">{array.name}</div>
+                <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                   array
                 </div>
               </div>
@@ -318,8 +341,8 @@ const MemoryPanel = memo(
                     className={clsx(
                       "rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]",
                       pointer.active
-                        ? "border-cyan-300/18 bg-cyan-300/10 text-cyan-100"
-                        : "border-white/8 bg-white/[0.03] text-slate-400",
+                        ? "border-[rgba(114,255,112,0.18)] bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]"
+                        : "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
                     )}
                   >
                     {pointer.name}:{pointer.index}
@@ -339,14 +362,14 @@ const MemoryPanel = memo(
                     className={clsx(
                       "w-[3.6rem] rounded-xl border px-2 py-2 text-center",
                       item.changed
-                        ? "border-cyan-300/20 bg-cyan-300/10"
-                        : "border-white/8 bg-[#07111f]",
+                        ? "border-[rgba(114,255,112,0.2)] bg-[rgba(114,255,112,0.1)]"
+                        : "border-[var(--cs-border)] bg-[rgba(11,15,11,0.92)]",
                     )}
                   >
-                    <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--cs-text-subtle)]">
                       {item.index}
                     </div>
-                    <div className="mt-1 font-mono text-xs text-slate-100">
+                    <div className="mt-1 font-mono text-xs text-[var(--cs-text)]">
                       {item.label}
                     </div>
                   </motion.div>
@@ -363,24 +386,24 @@ const MemoryPanel = memo(
             <motion.div
               key={node.id}
               layout
-              className="rounded-2xl border border-white/8 bg-[#0a1524] p-3"
+              className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] p-3"
             >
-              <div className="flex items-center gap-3 text-xs uppercase tracking-[0.16em] text-slate-500">
-                <span className="font-mono text-cyan-200">{sourceName}</span>
-                <span className="h-px flex-1 bg-gradient-to-r from-cyan-300/40 to-transparent" />
+              <div className="flex items-center gap-3 text-xs uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                <span className="font-mono text-[var(--cs-primary-bright)]">{sourceName}</span>
+                <span className="h-px flex-1 bg-gradient-to-r from-[rgba(114,255,112,0.32)] to-transparent" />
                 <span>{node.kind}</span>
               </div>
 
-              <div className="mt-3 rounded-xl border border-white/6 bg-[#07111f]/90 px-3 py-2.5">
-                <div className="mb-2 font-medium text-white">{node.label}</div>
+              <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
+                <div className="mb-2 font-medium text-[var(--cs-text)]">{node.label}</div>
                 <div className="space-y-1.5">
                   {node.rows.map((row) => (
                     <div
                       key={`${node.id}-${row.key}`}
                       className="grid grid-cols-[auto,1fr] gap-3 text-xs"
                     >
-                      <span className="font-mono text-slate-500">{row.key}</span>
-                      <span className="break-all font-mono text-slate-300">
+                      <span className="font-mono text-[var(--cs-text-subtle)]">{row.key}</span>
+                      <span className="break-all font-mono text-[var(--cs-text-muted)]">
                         {row.value}
                       </span>
                     </div>
@@ -409,31 +432,38 @@ const FlowPanel = memo(
   }) => {
     const nearbySteps = useMemo(() => {
       const start = Math.max(0, currentStepIndex - 2);
-      return steps.slice(start, Math.min(steps.length, currentStepIndex + 4)).map((step, index) => ({
-        step,
-        actualIndex: start + index,
-      }));
+      return steps
+        .slice(start, Math.min(steps.length, currentStepIndex + 4))
+        .map((step, index) => ({
+          step,
+          actualIndex: start + index,
+        }));
     }, [currentStepIndex, steps]);
 
     return (
-      <section className="rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4">
+      <section className={surfacePanelClass}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
               Execution Flow
             </div>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
               The current line, nearby steps, and output all stay in sync during playback.
             </p>
           </div>
-          <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-400">
+          <span
+            className={clsx(
+              chipBaseClass,
+              "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
+            )}
+          >
             {steps.length}
           </span>
         </div>
 
         <div className="mt-4 space-y-2.5">
           {nearbySteps.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm leading-6 text-slate-400">
+            <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
               Run the program to generate a clickable execution path.
             </div>
           ) : (
@@ -448,26 +478,26 @@ const FlowPanel = memo(
                   className={clsx(
                     "w-full rounded-2xl border px-3.5 py-3 text-left transition",
                     isActive
-                      ? "border-cyan-300/20 bg-cyan-300/10"
-                      : "border-white/8 bg-[#0a1524] hover:border-white/14",
+                      ? "border-[rgba(114,255,112,0.2)] bg-[rgba(114,255,112,0.1)]"
+                      : "border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] hover:border-[var(--cs-border-strong)]",
                   )}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                       line {step.line}
                     </span>
                     <span
                       className={clsx(
-                        "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]",
+                        chipBaseClass,
                         isActive
-                          ? "border-cyan-300/20 bg-cyan-300/12 text-cyan-100"
-                          : "border-white/8 bg-white/[0.03] text-slate-400",
+                          ? "border-[rgba(114,255,112,0.2)] bg-[rgba(114,255,112,0.12)] text-[var(--cs-primary-bright)]"
+                          : "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
                       )}
                     >
                       {isActive ? "now" : `step ${actualIndex + 1}`}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                  <p className="mt-2 text-sm leading-6 text-[var(--cs-text)]">
                     {step.explanation ?? step.description}
                   </p>
                 </button>
@@ -496,19 +526,19 @@ const RuntimePanel = memo(
     );
 
     return (
-      <section className="rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4">
+      <section className={surfacePanelClass}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
               Runtime Status
             </div>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
               Compile and execution phases are reported separately so failures are easier to debug.
             </p>
           </div>
           <span
             className={clsx(
-              "rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.14em]",
+              chipBaseClass,
               executionStatusTone[trace.status] ?? executionStatusTone.running,
             )}
           >
@@ -517,46 +547,46 @@ const RuntimePanel = memo(
         </div>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/6 bg-[#07111f]/90 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+          <div className={clsx(innerPanelClass, "px-3 py-3")}>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
               Timing
             </div>
-            <div className="mt-2 text-sm text-slate-200">
+            <div className="mt-2 text-sm text-[var(--cs-text)]">
               total {trace.executionTime}ms
             </div>
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
               queue {trace.metrics.queueTimeMs}ms, compile {trace.metrics.compileTimeMs}ms, run {trace.metrics.runTimeMs}ms
             </div>
             {typeof trace.metrics.peakMemoryKb === "number" ? (
-              <div className="mt-1 text-xs text-slate-400">
+              <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
                 peak memory {trace.metrics.peakMemoryKb} KB
               </div>
             ) : null}
           </div>
 
-          <div className="rounded-2xl border border-white/6 bg-[#07111f]/90 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+          <div className={clsx(innerPanelClass, "px-3 py-3")}>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
               Limits
             </div>
-            <div className="mt-2 text-sm text-slate-200">
+            <div className="mt-2 text-sm text-[var(--cs-text)]">
               run {trace.limits.runTimeoutMs}ms, compile {trace.limits.compileTimeoutMs}ms
             </div>
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
               {trace.limits.memoryLimitMb}MB, {trace.limits.cpuLimit} CPU, {trace.limits.pidsLimit} pids
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/6 bg-[#07111f]/90 px-3 py-3 sm:col-span-2">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+          <div className={clsx(innerPanelClass, "px-3 py-3 sm:col-span-2")}>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
               Program Input
             </div>
-            <div className="mt-2 text-sm text-slate-200">
+            <div className="mt-2 text-sm text-[var(--cs-text)]">
               {trace.stdin.provided
                 ? `${trace.stdin.lineCount} line${trace.stdin.lineCount === 1 ? "" : "s"}, ${trace.stdin.charCount} chars`
                 : "No stdin provided"}
             </div>
             {trace.stdin.preview ? (
-              <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-white/6 bg-[#0a1524] px-3 py-2 font-mono text-xs text-slate-300">
+              <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(15,20,15,0.95)] px-3 py-2 font-mono text-xs text-[var(--cs-text-muted)]">
                 {trace.stdin.preview}
               </pre>
             ) : null}
@@ -588,34 +618,34 @@ const RuntimePanel = memo(
 
         <div className="mt-4 space-y-3">
           {phases.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm leading-6 text-slate-400">
+            <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
               Run the program to inspect compilation and execution details.
             </div>
           ) : (
             phases.map((phase) => (
               <div
                 key={phase.phase}
-                className="rounded-2xl border border-white/8 bg-[#0a1524] p-3"
+                className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] p-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="font-medium capitalize text-white">
+                    <div className="font-medium capitalize text-[var(--cs-text)]">
                       {phase.phase} phase
                     </div>
-                    <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                    <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-[var(--cs-text-subtle)]">
                       {phase.durationMs}ms
                       {typeof phase.exitCode === "number" ? `, exit ${phase.exitCode}` : ""}
                     </div>
                   </div>
                   <span
                     className={clsx(
-                      "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.16em]",
+                      chipBaseClass,
                       phase.status === "completed"
-                        ? "border-emerald-300/18 bg-emerald-300/10 text-emerald-100"
+                        ? "border-[rgba(114,255,112,0.18)] bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]"
                         : phase.status === "timed_out"
                           ? "border-rose-300/18 bg-rose-300/10 text-rose-100"
                           : phase.status === "skipped"
-                            ? "border-white/8 bg-white/[0.03] text-slate-400"
+                            ? "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]"
                             : "border-amber-300/18 bg-amber-300/10 text-amber-100",
                     )}
                   >
@@ -623,21 +653,21 @@ const RuntimePanel = memo(
                   </span>
                 </div>
 
-                <div className="mt-3 rounded-xl border border-white/6 bg-[#07111f]/90 px-3 py-2.5">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                     Command
                   </div>
-                  <div className="mt-2 break-all font-mono text-xs text-slate-300">
+                  <div className="mt-2 break-all font-mono text-xs text-[var(--cs-text-muted)]">
                     {phase.command}
                   </div>
                 </div>
 
                 {phase.stdout ? (
-                  <div className="mt-3 rounded-xl border border-white/6 bg-[#07111f]/90 px-3 py-2.5">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                  <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                       Output
                     </div>
-                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-slate-300">
+                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-[var(--cs-text-muted)]">
                       {phase.stdout}
                     </pre>
                   </div>
@@ -692,7 +722,7 @@ export const ExecutionVisualizer = memo(
       variables: (
         <VariableStateList
           sectionTitle="Variable State"
-          helper="Current value, scope, and type are kept visible without oversized cards."
+          helper="Current value, scope, and type stay visible while the editor remains dominant."
           variables={model.variables}
         />
       ),
@@ -708,19 +738,34 @@ export const ExecutionVisualizer = memo(
     };
 
     return (
-      <aside className="flex min-h-[28rem] flex-col overflow-hidden rounded-[1.8rem] border border-white/8 bg-[linear-gradient(180deg,rgba(10,20,35,0.94),rgba(7,16,29,0.98))] shadow-[0_20px_60px_rgba(1,8,18,0.34)]">
-        <div className="border-b border-white/8 px-4 py-4">
-          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
-            Visualization Assistant
+      <aside className="flex min-h-[28rem] flex-col overflow-hidden rounded-[1.8rem] border border-[var(--cs-border)] bg-[linear-gradient(180deg,rgba(12,14,12,0.96),rgba(7,9,7,0.98))] shadow-[0_24px_70px_rgba(0,0,0,0.45)]">
+        <div className="border-b border-[var(--cs-border)] px-4 py-4">
+          <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--cs-text-subtle)]">
+            Runtime Visualization
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-slate-300">
+            <span
+              className={clsx(
+                chipBaseClass,
+                "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
+              )}
+            >
               {steps.length === 0 ? "Idle" : `Step ${currentStepIndex + 1}/${steps.length}`}
             </span>
-            <span className="rounded-full border border-cyan-300/16 bg-cyan-300/8 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-cyan-100">
+            <span
+              className={clsx(
+                chipBaseClass,
+                "border-[rgba(114,255,112,0.16)] bg-[rgba(114,255,112,0.08)] text-[var(--cs-primary-bright)]",
+              )}
+            >
               {changedVariables.length} change{changedVariables.length === 1 ? "" : "s"}
             </span>
-            <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-slate-400">
+            <span
+              className={clsx(
+                chipBaseClass,
+                "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
+              )}
+            >
               {model.stackFrames.length} frame{model.stackFrames.length === 1 ? "" : "s"}
             </span>
           </div>
@@ -729,39 +774,36 @@ export const ExecutionVisualizer = memo(
         <div className="workbench-scrollbar flex-1 overflow-y-auto px-4 py-4">
           <RuntimePanel trace={trace} isExecuting={isExecuting} />
 
-          <motion.section
-            layout
-            className="mt-4 rounded-[1.45rem] border border-white/8 bg-[rgba(8,17,29,0.72)] p-4"
-          >
+          <motion.section layout className={clsx(surfacePanelClass, "mt-4")}>
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
                 Explanation
               </div>
-              <div className="font-mono text-[11px] text-slate-500">
+              <div className="font-mono text-[11px] text-[var(--cs-text-subtle)]">
                 {step?.line ? `Line ${step.line}` : "Waiting"}
               </div>
             </div>
 
-            <p className="mt-3 text-sm leading-7 text-slate-200">
+            <p className="mt-3 text-sm leading-7 text-[var(--cs-text)]">
               {plainEnglishSummary}
             </p>
 
-            <div className="mt-3 rounded-2xl border border-white/6 bg-[#07111f]/90 px-3 py-3">
-              <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            <div className="mt-3 rounded-2xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-3">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                 Current line
               </div>
-              <div className="mt-2 font-mono text-xs leading-6 text-slate-100">
+              <div className="mt-2 font-mono text-xs leading-6 text-[var(--cs-text)]">
                 {activeLineCode ||
                   "Run the program to pin the current line and explain the change."}
               </div>
             </div>
 
             {latestConsole.length > 0 ? (
-              <div className="mt-3 rounded-2xl border border-white/6 bg-[#07111f]/90 px-3 py-3">
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+              <div className="mt-3 rounded-2xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-3">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                   Console
                 </div>
-                <div className="mt-2 space-y-1 font-mono text-xs leading-6 text-slate-300">
+                <div className="mt-2 space-y-1 font-mono text-xs leading-6 text-[var(--cs-text-muted)]">
                   {latestConsole.map((line, index) => (
                     <p key={`${line}-${index}`} className="break-all">
                       {line}
@@ -786,10 +828,11 @@ export const ExecutionVisualizer = memo(
                   type="button"
                   onClick={() => setMobileSection(section.key)}
                   className={clsx(
-                    "rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition",
+                    chipBaseClass,
+                    "transition",
                     mobileSection === section.key
-                      ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
-                      : "border-white/8 bg-white/[0.03] text-slate-400",
+                      ? "border-[rgba(114,255,112,0.2)] bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]"
+                      : "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
                   )}
                 >
                   {section.label}
