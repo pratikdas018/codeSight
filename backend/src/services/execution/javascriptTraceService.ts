@@ -1,4 +1,5 @@
 import { parse } from "acorn";
+import type { StructuredLogger } from "../../logging/logger";
 import { formatRuntimeValue } from "./formatRuntimeValue";
 import { isUserFunctionDefinition, supportedMathMethods } from "./javascriptBuiltins";
 import type {
@@ -41,9 +42,16 @@ class StepInterpreter {
   private readonly output: string[] = [];
   private iterations = 0;
   private readonly maxIterations = 200;
+  constructor(private readonly logger?: StructuredLogger) {}
 
   run(code: string): ExecutionTimeline {
     try {
+      this.logger?.trace("Starting JavaScript trace parser.", {
+        phase: "trace",
+        details: {
+          sourceBytes: Buffer.byteLength(code, "utf8"),
+        },
+      });
       const program = parse(code, {
         ecmaVersion: "latest",
         sourceType: "script",
@@ -63,6 +71,14 @@ class StepInterpreter {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Execution failed.";
+      this.logger?.error("JavaScript trace engine failed.", error, {
+        phase: "trace",
+        stderr: message,
+        details: {
+          capturedSteps: this.steps.length,
+          capturedOutputLines: this.output.length,
+        },
+      });
 
       return {
         steps: this.steps,
@@ -707,7 +723,10 @@ class StepInterpreter {
   }
 }
 
-export const executeJavaScript = (code: string): ExecutionTimeline => {
-  const interpreter = new StepInterpreter();
+export const executeJavaScript = (
+  code: string,
+  logger?: StructuredLogger,
+): ExecutionTimeline => {
+  const interpreter = new StepInterpreter(logger);
   return interpreter.run(code);
 };

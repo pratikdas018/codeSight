@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY?: string;
   readonly VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED?: string;
   readonly VITE_SITE_URL?: string;
+  readonly VITE_CODESIGHT_LOG_LEVEL?: string;
+  readonly VITE_CODESIGHT_VERBOSE_LOGS?: string;
 }
 
 interface ImportMeta {
@@ -51,17 +53,42 @@ interface RecentFileRecord {
   lastOpenedAt: string;
 }
 
+interface SystemLogEntry {
+  timestamp: string;
+  level: "error" | "warn" | "info" | "debug";
+  scope: string;
+  message: string;
+  executionId?: string;
+  traceId?: string;
+  phase?: "compile" | "run" | "trace" | "system";
+  language?: SupportedLanguage;
+  command?: string;
+  filePath?: string;
+  durationMs?: number | null;
+  exitCode?: number | null;
+  signal?: string | null;
+  stdout?: string;
+  stderr?: string;
+  stack?: string;
+  details?: Record<string, string | number | boolean | null>;
+}
+
 interface Window {
   electronAPI?: {
     env: {
       isElectron: boolean;
       backendUrl: string;
+      nodeEnv: string;
       supabaseUrl?: string;
       supabaseAnonKey?: string;
       supabaseEmailConfirmationRequired?: string;
       siteUrl?: string;
       platform: string;
       version: string;
+      logging: {
+        level: "error" | "warn" | "info" | "debug";
+        verbose: boolean;
+      };
     };
     authStorage: {
       getItem: (key: string) => Promise<string | null>;
@@ -91,6 +118,7 @@ interface Window {
       filePath?: string;
       snippet?: LocalSnippetRecord;
     }>;
+    onSystemLog: (callback: (entry: SystemLogEntry) => void) => () => void;
     onMenuAction: (callback: (action: MenuActionEvent) => void) => () => void;
   };
 }

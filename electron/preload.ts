@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 type SupportedLanguage = "javascript" | "python" | "c" | "cpp" | "java";
+type DesktopLogLevel = "error" | "warn" | "info" | "debug";
 
 interface MenuActionEvent {
   type:
@@ -14,11 +15,63 @@ interface MenuActionEvent {
   filePath?: string;
 }
 
+interface SystemLogEntry {
+  timestamp: string;
+  level: DesktopLogLevel;
+  scope: string;
+  message: string;
+  executionId?: string;
+  traceId?: string;
+  phase?: "compile" | "run" | "trace" | "system";
+  language?: SupportedLanguage;
+  command?: string;
+  filePath?: string;
+  durationMs?: number | null;
+  exitCode?: number | null;
+  signal?: string | null;
+  stdout?: string;
+  stderr?: string;
+  stack?: string;
+  details?: Record<string, string | number | boolean | null>;
+}
+
+const parseLogLevel = (value: string | undefined): DesktopLogLevel | null => {
+  switch (value?.trim().toLowerCase()) {
+    case "error":
+    case "warn":
+    case "info":
+    case "debug":
+      return value.trim().toLowerCase() as DesktopLogLevel;
+    default:
+      return null;
+  }
+};
+
+const verboseLoggingEnabled =
+  process.env.CODESIGHT_VERBOSE_LOGS?.trim().toLowerCase() === "true";
+const preloadLogLevel =
+  parseLogLevel(process.env.CODESIGHT_LOG_LEVEL) ??
+  parseLogLevel(process.env.LOG_LEVEL) ??
+  (verboseLoggingEnabled
+    ? "debug"
+    : (process.env.NODE_ENV ?? "development") === "production"
+      ? "error"
+      : "warn");
+
+process.on("uncaughtException", (error) => {
+  console.error("[PRELOAD] Uncaught exception", error);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[PRELOAD] Unhandled promise rejection", reason);
+});
+
 contextBridge.exposeInMainWorld("electronAPI", {
   env: {
     isElectron: true,
     backendUrl:
       process.env.CODESIGHT_BACKEND_URL ?? "http://127.0.0.1:4000",
+    nodeEnv: process.env.NODE_ENV ?? "development",
     supabaseUrl: process.env.VITE_SUPABASE_URL,
     supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY,
     supabaseEmailConfirmationRequired:
@@ -26,6 +79,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     siteUrl: process.env.VITE_SITE_URL,
     platform: process.platform,
     version: process.env.npm_package_version ?? "1.0.0",
+    logging: {
+      level: preloadLogLevel,
+      verbose: verboseLoggingEnabled,
+    },
   },
   authStorage: {
     getItem: (key: string) => ipcRenderer.invoke("auth-storage:get", key),
@@ -54,6 +111,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
   toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),
   isWindowMaximized: () => ipcRenderer.invoke("window:is-maximized"),
+  onSystemLog: (callback: (entry: SystemLogEntry) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      entry: SystemLogEntry,
+    ) => {
+      callback(entry);
+    };
+
+    ipcRenderer.on("codesight:system-log", handler);
+
+    return () => {
+      ipcRenderer.removeListener("codesight:system-log", handler);
+    };
+  },
   onMenuAction: (callback: (action: MenuActionEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, action: MenuActionEvent) => {
       callback(action);

@@ -1,29 +1,21 @@
 # CodeSight
 
-CodeSight is a production-ready code visualization platform built with React, Vite, Electron, a Node.js API, a hardened Docker-based execution service, and Supabase.
+CodeSight is an Electron desktop code-visualization workspace built with React, Vite, Monaco, an embedded Node.js backend, and local machine runtimes.
 
-## Production Surfaces
+## Supported Local Runtimes
 
-- Web frontend on Vercel
-- Public API on Render
-- Private execution engine on a Docker host
-- Supabase for auth and PostgreSQL data
-- Electron desktop releases for Windows, macOS, and Linux
+- JavaScript: `node`
+- Python: `python` or `python3`
+- Java: `java` and `javac`
+- C: `gcc`
+- C++: `g++`
 
-## Key Files
+CodeSight checks these tools at startup and shows their status in the Runtime Manager panel inside the desktop app.
 
-- Web deploy config: [vercel.json](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/vercel.json)
-- Render blueprint: [render.yaml](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/render.yaml)
-- Production Docker stack: [docker-compose.production.yml](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/docker-compose.production.yml)
-- Executor reverse proxy: [deploy/Caddyfile](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/deploy/Caddyfile)
-- Supabase schema: [supabase/migrations/20260509_initial_schema.sql](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/supabase/migrations/20260509_initial_schema.sql)
-- Deployment guide: [docs/deployment.md](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/docs/deployment.md)
-
-## Local Commands
+## Local Development
 
 ```bash
 npm install
-npm run docker:build:runners
 npm run dev
 ```
 
@@ -34,21 +26,22 @@ npm run electron:dev
 npm run electron:start
 ```
 
+- `npm run electron:dev` uses the frontend and backend dev servers.
+- `npm run electron:start` builds the frontend, backend, and Electron shell, then launches the packaged-style desktop app with the embedded backend.
 
-- `npm run electron:dev` expects the frontend and backend dev servers to already be running.
-- `npm run electron:start` builds the frontend, backend, and Electron shell, then launches a self-contained desktop app with the embedded backend.
-
-## Production Build Commands
+## Production Builds
 
 ```bash
 npm run build
-npm run docker:build
 npm run electron:build
 ```
 
-## Environment Templates
+## Key Files
 
-- API/local backend: [backend/.env.example](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/backend/.env.example)
-- Private executor host: [backend/.env.executor.example](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/backend/.env.executor.example)
-- Frontend/Vercel: [frontend/.env.example](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/frontend/.env.example)
-- Self-hosted compose stack: [deploy/production.env.example](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/deploy/production.env.example)
+- Electron shell: [electron/main.ts](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/electron/main.ts)
+- Embedded backend app: [backend/src/app.ts](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/backend/src/app.ts)
+- Local executor: [backend/src/executors/localExecutor.ts](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/backend/src/executors/localExecutor.ts)
+- Runtime detection: [backend/src/services/runtimeManagerService.ts](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/backend/src/services/runtimeManagerService.ts)
+- Desktop workbench: [frontend/src/pages/HomePage.tsx](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/frontend/src/pages/HomePage.tsx)
+- Runtime Manager UI: [frontend/src/components/RuntimeManagerPanel.tsx](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/frontend/src/components/RuntimeManagerPanel.tsx)
+- Deployment notes: [docs/deployment.md](/c:/Users/lenovo/OneDrive/Desktop/projects/codeSight/docs/deployment.md)

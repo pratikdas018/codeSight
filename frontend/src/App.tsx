@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AuthConfirmScreen } from "./components/AuthConfirmScreen";
 import { AppStatusScreen } from "./components/AppStatusScreen";
@@ -6,6 +6,7 @@ import { AuthScreen } from "./components/AuthScreen";
 import { ToastViewport } from "./components/ToastViewport";
 import { useAuth } from "./hooks/useAuth";
 import { hasSupabaseConfig, SUPABASE_CONFIG_ERROR } from "./lib/supabase";
+import { createRendererLogger, logStructuredEntry } from "./utils/logger";
 import type { Notice } from "./utils/types";
 
 const HomePage = lazy(() =>
@@ -16,6 +17,7 @@ const HomePage = lazy(() =>
 
 const App = () => {
   const [notice, setNotice] = useState<Notice | null>(null);
+  const rendererLogger = createRendererLogger("RENDERER");
   const isAuthConfirmRoute = window.location.pathname === "/auth/confirm";
   const {
     user,
@@ -25,6 +27,33 @@ const App = () => {
     authenticate,
     resendConfirmation,
   } = useAuth();
+
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      rendererLogger.error("Unhandled renderer error.", event.error ?? event.message, {
+        filename: event.filename,
+        line: event.lineno,
+        column: event.colno,
+      });
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      rendererLogger.error("Unhandled renderer promise rejection.", event.reason, {});
+    };
+
+    const unsubscribeSystemLog = window.electronAPI?.onSystemLog((entry) => {
+      logStructuredEntry(entry);
+    });
+
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
+    return () => {
+      unsubscribeSystemLog?.();
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    };
+  }, []);
 
   if (!hasSupabaseConfig) {
     return (

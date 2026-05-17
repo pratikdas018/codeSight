@@ -1,18 +1,19 @@
-import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
+import type { StructuredLogger } from "../../logging/logger";
 import type { ExecutionTimeline } from "../../types/execution";
+import { getPythonCandidates } from "../../executors/runtimeCatalog";
+import { runCommandWithLimits } from "../../executors/runCommandWithLimits";
 import { removeDirectory } from "../../utils/removeDirectory";
 
-const execFileAsync = promisify(execFile);
 const defaultExecutionTimeoutMs = 10000;
 const executionMaxBuffer = 1024 * 1024;
 
 const pythonRunnerTemplate = (
   encodedUserCode: string,
   encodedUserInput: string,
+  maxSteps: number,
 ) => `
 import base64
 import contextlib
@@ -26,6 +27,7 @@ from types import FrameType
 FILENAME = "<codesight>"
 USER_CODE = base64.b64decode("${encodedUserCode}").decode("utf-8")
 USER_STDIN = base64.b64decode("${encodedUserInput}").decode("utf-8")
+MAX_STEPS = ${maxSteps}
 
 linecache.cache[FILENAME] = (
     len(USER_CODE),
@@ -36,6 +38,7 @@ linecache.cache[FILENAME] = (
 
 steps = []
 error_message = None
+trace_truncated = False
 
 class TraceOutput:
     def __init__(self):
@@ -125,8 +128,13 @@ def build_description(frame: FrameType):
     return f"Executing Python line {frame.f_lineno} in {scope_name}."
 
 def tracer(frame, event, arg):
+    global trace_truncated
+
     if frame.f_code.co_filename != FILENAME:
         return tracer
+
+    if trace_truncated:
+        return None
 
     if event == "line":
         steps.append({
@@ -144,6 +152,10 @@ def tracer(frame, event, arg):
             "stack": serialize_stack(frame),
             "output": console_output.snapshot(),
         })
+
+    if len(steps) >= MAX_STEPS:
+        trace_truncated = True
+        return None
 
     return tracer
 
@@ -167,32 +179,16 @@ print(json.dumps({
     "steps": steps,
     "output": console_output.snapshot(),
     "error": error_message,
+    "truncated": trace_truncated,
 }))
 `;
-
-interface PythonCommand {
-  command: string;
-  args: string[];
-}
-
-const getPythonCandidates = (): PythonCommand[] => {
-  const configuredExecutable = process.env.PYTHON_EXECUTABLE?.trim();
-
-  if (configuredExecutable) {
-    const [command, ...args] = configuredExecutable.split(/\s+/);
-    return [{ command, args }];
-  }
-
-  return [
-    { command: "python", args: [] },
-    { command: "py", args: ["-3"] },
-  ];
-};
 
 export const executePython = async (
   code: string,
   stdin = "",
   timeoutMs = defaultExecutionTimeoutMs,
+  maxSteps = 400,
+  logger?: StructuredLogger,
 ): Promise<ExecutionTimeline> => {
   const tempDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), "codesight-python-"),
@@ -203,29 +199,95 @@ export const executePython = async (
 
   await fs.writeFile(
     runnerPath,
-    pythonRunnerTemplate(encodedUserCode, encodedUserInput),
+    pythonRunnerTemplate(encodedUserCode, encodedUserInput, maxSteps),
     "utf8",
   );
+  logger?.trace("Prepared Python trace runner script.", {
+    phase: "trace",
+    filePath: runnerPath,
+      details: {
+        tempDirectory,
+        sourceBytes: Buffer.byteLength(code, "utf8"),
+        stdinBytes: Buffer.byteLength(stdin, "utf8"),
+        maxSteps,
+      },
+    });
 
   try {
     let lastError: unknown = null;
 
     for (const candidate of getPythonCandidates()) {
+      logger?.trace("Attempting Python trace runner candidate.", {
+        phase: "trace",
+        command: [candidate.command, ...(candidate.args ?? []), runnerPath].join(" "),
+        filePath: runnerPath,
+      });
       try {
-        const { stdout } = await execFileAsync(
-          candidate.command,
-          [...candidate.args, runnerPath],
-          {
-            timeout: timeoutMs,
-            maxBuffer: executionMaxBuffer,
-          },
-        );
+        const result = await runCommandWithLimits({
+          command: candidate.command,
+          args: [...(candidate.args ?? []), runnerPath],
+          timeoutMs,
+          outputLimitBytes: executionMaxBuffer,
+          logger,
+          phase: "trace",
+          language: "python",
+          filePath: runnerPath,
+        });
+        const stdout = result.stdout;
+        const stderr = result.stderr;
 
-        const parsedTrace = JSON.parse(stdout) as ExecutionTimeline;
+        if (result.timedOut) {
+          throw new Error(`Python execution timed out after ${timeoutMs}ms.`);
+        }
+
+        if (
+          /^python(?:3(?:\.exe)?)?(?:\.exe)?$/i.test(candidate.command) &&
+          /Python was not found; run without arguments to install/i.test(stderr)
+        ) {
+          lastError = new Error(stderr.trim() || "Python runtime was not found.");
+          continue;
+        }
+
+        if (result.exitCode !== 0 && !stdout.trim()) {
+          throw new Error(
+            stderr.trim() ||
+              `Python trace runner exited with code ${result.exitCode ?? "unknown"}.`,
+          );
+        }
+
+        let parsedTrace: ExecutionTimeline;
+
+        try {
+          parsedTrace = JSON.parse(stdout) as ExecutionTimeline;
+        } catch (error) {
+          logger?.error("Python trace parser failed to decode runner output.", error, {
+            phase: "trace",
+            command: [candidate.command, ...(candidate.args ?? []), runnerPath].join(" "),
+            filePath: runnerPath,
+            stdout,
+            stderr,
+          });
+          throw error;
+        }
+
+        logger?.trace("Python trace runner completed successfully.", {
+          phase: "trace",
+          command: [candidate.command, ...(candidate.args ?? []), runnerPath].join(" "),
+          filePath: runnerPath,
+          stdout,
+          stderr,
+          details: {
+            capturedSteps: parsedTrace.steps?.length ?? 0,
+            capturedOutputLines: parsedTrace.output?.length ?? 0,
+            traceError: parsedTrace.error ?? "",
+            truncated: parsedTrace.truncated ?? false,
+          },
+        });
 
         return {
           steps: parsedTrace.steps ?? [],
           output: parsedTrace.output ?? [],
+          truncated: parsedTrace.truncated ?? false,
           ...(parsedTrace.error ? { error: parsedTrace.error } : {}),
         };
       } catch (error) {
@@ -233,62 +295,19 @@ export const executePython = async (
           typeof error === "object" &&
           error !== null &&
           "code" in error &&
-          (error as { code?: string }).code === "ENOENT"
+          ((error as { code?: string }).code === "ENOENT" ||
+            ((error as { code?: string }).code === "EACCES" &&
+              process.platform === "win32"))
         ) {
           lastError = error;
           continue;
         }
 
-        const stderr =
-          typeof error === "object" &&
-          error !== null &&
-          "stderr" in error &&
-          typeof (error as { stderr?: string }).stderr === "string"
-            ? (error as { stderr: string }).stderr
-            : "";
-
-        if (
-          candidate.command === "python" &&
-          /Python was not found; run without arguments to install/i.test(stderr)
-        ) {
-          lastError = error;
-          continue;
-        }
-
-        if (
-          typeof error === "object" &&
-          error !== null &&
-          "stdout" in error &&
-          typeof (error as { stdout?: string }).stdout === "string"
-        ) {
-          const stdout = (error as { stdout: string }).stdout;
-
-          try {
-            const parsedTrace = JSON.parse(stdout) as ExecutionTimeline;
-            return {
-              steps: parsedTrace.steps ?? [],
-              output: parsedTrace.output ?? [],
-              ...(parsedTrace.error ? { error: parsedTrace.error } : {}),
-            };
-          } catch {
-            if (
-              "code" in (error as object) &&
-              (error as { code?: string }).code === "ETIMEDOUT"
-            ) {
-              throw new Error(`Python execution timed out after ${timeoutMs}ms.`);
-            }
-            throw error;
-          }
-        }
-
-        if (
-          typeof error === "object" &&
-          error !== null &&
-          "code" in error &&
-          (error as { code?: string }).code === "ETIMEDOUT"
-        ) {
-          throw new Error(`Python execution timed out after ${timeoutMs}ms.`);
-        }
+        logger?.error("Python trace runner candidate failed.", error, {
+          phase: "trace",
+          command: [candidate.command, ...(candidate.args ?? []), runnerPath].join(" "),
+          filePath: runnerPath,
+        });
 
         throw error;
       }

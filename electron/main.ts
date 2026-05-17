@@ -13,7 +13,7 @@ import type {
   OpenDialogOptions,
   SaveDialogOptions,
 } from "electron";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -61,14 +61,31 @@ interface LocalSnippetRecord {
   source: "local";
 }
 
-interface DesktopReleaseConfig {
-  productionApiBaseUrl?: string;
-  preferHostedApiInProduction?: boolean;
-}
-
 interface PersistedAuthValue {
   mode: "safeStorage" | "plain";
   value: string;
+}
+
+type SystemLogLevel = "error" | "warn" | "info" | "debug";
+
+interface SystemLogEntry {
+  timestamp: string;
+  level: SystemLogLevel;
+  scope: string;
+  message: string;
+  executionId?: string;
+  traceId?: string;
+  phase?: "compile" | "run" | "trace" | "system";
+  language?: SupportedLanguage;
+  command?: string;
+  filePath?: string;
+  durationMs?: number | null;
+  exitCode?: number | null;
+  signal?: string | null;
+  stdout?: string;
+  stderr?: string;
+  stack?: string;
+  details?: Record<string, string | number | boolean | null>;
 }
 
 const shouldUseDevServer =
@@ -82,6 +99,31 @@ const shouldAutoOpenDevTools =
 const productionBackendPort = Number(
   process.env.CODESIGHT_DESKTOP_BACKEND_PORT ?? 4010,
 );
+const logLevelPriority: Record<SystemLogLevel, number> = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  debug: 3,
+};
+const parseSystemLogLevel = (value: string | undefined): SystemLogLevel | null => {
+  switch (value?.trim().toLowerCase()) {
+    case "error":
+    case "warn":
+    case "info":
+    case "debug":
+      return value.trim().toLowerCase() as SystemLogLevel;
+    default:
+      return null;
+  }
+};
+const verboseDesktopLogging =
+  process.env.CODESIGHT_VERBOSE_LOGS?.trim().toLowerCase() === "true";
+const desktopLogLevel =
+  parseSystemLogLevel(process.env.CODESIGHT_LOG_LEVEL) ??
+  parseSystemLogLevel(process.env.LOG_LEVEL) ??
+  (verboseDesktopLogging ? "debug" : app.isPackaged ? "error" : "warn");
+const shouldForwardRendererConsole =
+  process.env.CODESIGHT_FORWARD_RENDERER_CONSOLE?.trim().toLowerCase() === "true";
 
 const snippetDirectoryName = "local-snippets";
 const recentFilesStoreName = "recent-files.json";
@@ -111,6 +153,10 @@ let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let backendServer: { close: (callback: () => void) => void } | null = null;
 let hasRevealedMainWindow = false;
+const systemLogBacklog: SystemLogEntry[] = [];
+const maxSystemLogBacklog = 200;
+const shouldEmitDesktopLog = (level: SystemLogLevel) =>
+  logLevelPriority[level] <= logLevelPriority[desktopLogLevel];
 
 const getDesktopLogFilePath = () => {
   const baseDirectory = app.isReady()
@@ -137,17 +183,122 @@ const serializeError = (error: unknown) => {
   }
 };
 
-const logDesktopMessage = (message: string, error?: unknown) => {
+const normalizeDetailValue = (
+  value: unknown,
+): string | number | boolean | null => {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  if (typeof value === "undefined") {
+    return null;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const buildSystemLogEntry = (
+  level: SystemLogLevel,
+  scope: string,
+  message: string,
+  details?: Record<string, unknown>,
+  error?: unknown,
+): SystemLogEntry => {
+  const serializedError = error ? serializeError(error) : "";
+
+  return {
+    timestamp: new Date().toISOString(),
+    level,
+    scope,
+    message,
+    ...(serializedError ? { stack: serializedError } : {}),
+    ...(details
+      ? {
+          details: Object.fromEntries(
+            Object.entries(details).map(([key, value]) => [
+              key,
+              normalizeDetailValue(value),
+            ]),
+          ),
+        }
+      : {}),
+  };
+};
+
+const emitRendererSystemLog = (entry: SystemLogEntry) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("codesight:system-log", entry);
+    return;
+  }
+
+  systemLogBacklog.push(entry);
+  if (systemLogBacklog.length > maxSystemLogBacklog) {
+    systemLogBacklog.splice(0, systemLogBacklog.length - maxSystemLogBacklog);
+  }
+};
+
+const flushRendererSystemLogs = () => {
+  if (!mainWindow || mainWindow.isDestroyed() || systemLogBacklog.length === 0) {
+    return;
+  }
+
+  for (const entry of systemLogBacklog.splice(0, systemLogBacklog.length)) {
+    mainWindow.webContents.send("codesight:system-log", entry);
+  }
+};
+
+const writeSystemLog = (
+  level: SystemLogLevel,
+  scope: string,
+  message: string,
+  details?: Record<string, unknown>,
+  error?: unknown,
+) => {
+  const entry = buildSystemLogEntry(level, scope, message, details, error);
   const lines = [
-    `[${new Date().toISOString()}] ${message}`,
-    error ? serializeError(error) : "",
+    `[${entry.timestamp}] [${entry.scope}] [${entry.level}] ${entry.message}`,
+    entry.details ? JSON.stringify(entry.details) : "",
+    entry.stack ?? "",
   ].filter(Boolean);
+
+  if (level === "error") {
+    if (shouldEmitDesktopLog(level)) {
+      console.error(`[${scope}] ${message}`, details ?? {}, error ?? "");
+    }
+  } else if (level === "warn") {
+    if (shouldEmitDesktopLog(level)) {
+      console.warn(`[${scope}] ${message}`, details ?? {}, error ?? "");
+    }
+  } else if (level === "debug") {
+    if (shouldEmitDesktopLog(level)) {
+      console.debug(`[${scope}] ${message}`, details ?? {}, error ?? "");
+    }
+  } else if (shouldEmitDesktopLog(level)) {
+    console.info(`[${scope}] ${message}`, details ?? {}, error ?? "");
+  }
 
   try {
     appendFileSync(getDesktopLogFilePath(), `${lines.join("\n")}\n`, "utf8");
   } catch {
     return;
+  } finally {
+    if (shouldEmitDesktopLog(level)) {
+      emitRendererSystemLog(entry);
+    }
   }
+};
+
+const logDesktopMessage = (message: string, error?: unknown) => {
+  writeSystemLog("info", "ELECTRON_MAIN", message, undefined, error);
 };
 
 const sleep = (durationMs: number) =>
@@ -156,8 +307,6 @@ const sleep = (durationMs: number) =>
   });
 
 const getCompiledAppRoot = () => path.resolve(__dirname, "..", "..");
-const getDesktopConfigPath = () =>
-  path.join(__dirname, "..", "desktop.config.json");
 const getIconPath = () => path.join(__dirname, "..", "assets", "icon.png");
 const getSplashPath = () => path.join(__dirname, "..", "splash.html");
 const getPreloadPath = () => path.join(__dirname, "preload.js");
@@ -174,9 +323,7 @@ const getAuthStorageStorePath = () =>
 const getBackendUrl = () =>
   shouldUseDevServer
     ? devBackendUrl
-    : shouldUseHostedApiInProduction
-      ? productionApiBaseUrl
-      : `http://127.0.0.1:${productionBackendPort}`;
+    : `http://127.0.0.1:${productionBackendPort}`;
 const getSessionDataPath = () =>
   path.join(
     process.env.LOCALAPPDATA ?? os.tmpdir(),
@@ -193,38 +340,6 @@ if (!hasSingleInstanceLock) {
   app.quit();
 }
 
-const readDesktopReleaseConfig = (): DesktopReleaseConfig => {
-  try {
-    const configPath = getDesktopConfigPath();
-
-    if (!existsSync(configPath)) {
-      return {};
-    }
-
-    const rawConfig = readFileSync(configPath, "utf8");
-    const parsedConfig = JSON.parse(rawConfig) as DesktopReleaseConfig;
-
-    return {
-      productionApiBaseUrl: parsedConfig.productionApiBaseUrl?.trim(),
-      preferHostedApiInProduction:
-        parsedConfig.preferHostedApiInProduction !== false,
-    };
-  } catch (error) {
-    logDesktopMessage("Unable to read desktop release config.", error);
-    return {};
-  }
-};
-
-const desktopReleaseConfig = readDesktopReleaseConfig();
-const productionApiBaseUrl =
-  process.env.CODESIGHT_DESKTOP_API_URL?.trim() ||
-  desktopReleaseConfig.productionApiBaseUrl?.trim() ||
-  "";
-const shouldUseHostedApiInProduction =
-  !shouldUseDevServer &&
-  desktopReleaseConfig.preferHostedApiInProduction !== false &&
-  Boolean(productionApiBaseUrl);
-
 const validateDesktopBundle = () => {
   if (shouldUseDevServer) {
     return;
@@ -233,16 +348,10 @@ const validateDesktopBundle = () => {
   const requiredFiles = [
     { label: "frontend entry", filePath: getFrontendEntry() },
     { label: "preload script", filePath: getPreloadPath() },
+    { label: "embedded backend", filePath: getBackendAppPath("dist", "app.js") },
     { label: "window icon", filePath: getIconPath() },
     { label: "splash screen", filePath: getSplashPath() },
   ];
-
-  if (!shouldUseHostedApiInProduction) {
-    requiredFiles.splice(2, 0, {
-      label: "embedded backend",
-      filePath: getBackendAppPath("dist", "app.js"),
-    });
-  }
 
   logDesktopMessage(
     `Validating desktop bundle with __dirname=${__dirname}, appPath=${app.getAppPath()}, resourcesPath=${process.resourcesPath}.`,
@@ -267,10 +376,8 @@ const buildDesktopEnvironment = () => {
     ...process.env,
     NODE_ENV: "production",
     PORT: String(productionBackendPort),
-    EXECUTOR_MODE:
-      process.env.CODESIGHT_DESKTOP_EXECUTOR_MODE ??
-      (shouldUseHostedApiInProduction ? "remote" : "local"),
-    EXECUTION_PROVIDER: process.env.EXECUTION_PROVIDER ?? "local",
+    EXECUTOR_MODE: "local",
+    EXECUTION_PROVIDER: "local",
     CODESIGHT_BACKEND_URL: `http://127.0.0.1:${productionBackendPort}`,
     REMOTE_EXECUTOR_URL:
       process.env.REMOTE_EXECUTOR_URL ??
@@ -296,6 +403,31 @@ const setWindowTitle = (fileName?: string | null) => {
   mainWindow?.setTitle(normalizeWindowTitle(fileName));
 };
 
+const handleIpc = <T>(
+  channel: string,
+  handler: (
+    event: Electron.IpcMainInvokeEvent,
+    payload?: unknown,
+  ) => Promise<T> | T,
+) => {
+  ipcMain.handle(channel, async (event, payload) => {
+    try {
+      return await handler(event, payload);
+    } catch (error) {
+      writeSystemLog(
+        "error",
+        "IPC",
+        `IPC handler failed for ${channel}.`,
+        {
+          channel,
+        },
+        error,
+      );
+      throw error;
+    }
+  });
+};
+
 const readAuthStorageStore = async () => {
   const storePath = getAuthStorageStorePath();
 
@@ -313,7 +445,13 @@ const readAuthStorageStore = async () => {
       return {};
     }
 
-    logDesktopMessage("Unable to read auth storage store.", error);
+    writeSystemLog(
+      "error",
+      "AUTH_STORAGE",
+      "Unable to read auth storage store.",
+      undefined,
+      error,
+    );
     return {};
   }
 };
@@ -437,21 +575,36 @@ const loadFileFromPath = async (filePath: string) => {
 };
 
 const invokeBackend = async <T>(pathname: string, payload?: unknown) => {
-  const response = await fetch(`${getBackendUrl()}${pathname}`, {
-    method: payload ? "POST" : "GET",
-    headers: payload ? { "Content-Type": "application/json" } : undefined,
-    body: payload ? JSON.stringify(payload) : undefined,
-  });
+  try {
+    const response = await fetch(`${getBackendUrl()}${pathname}`, {
+      method: payload ? "POST" : "GET",
+      headers: payload ? { "Content-Type": "application/json" } : undefined,
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
 
-  const data = (await response.json().catch(() => ({}))) as T & {
-    message?: string;
-  };
+    const data = (await response.json().catch(() => ({}))) as T & {
+      message?: string;
+    };
 
-  if (!response.ok) {
-    throw new Error(data.message ?? `Backend request failed for ${pathname}.`);
+    if (!response.ok) {
+      throw new Error(data.message ?? `Backend request failed for ${pathname}.`);
+    }
+
+    return data;
+  } catch (error) {
+    writeSystemLog(
+      "error",
+      "BACKEND_BRIDGE",
+      `Backend invocation failed for ${pathname}.`,
+      {
+        pathname,
+        backendUrl: getBackendUrl(),
+        hasPayload: Boolean(payload),
+      },
+      error,
+    );
+    throw error;
   }
-
-  return data;
 };
 
 const showAboutDialog = async () => {
@@ -473,12 +626,7 @@ const showAboutDialog = async () => {
 };
 
 const startEmbeddedBackend = async () => {
-  if (shouldUseDevServer || backendServer || shouldUseHostedApiInProduction) {
-    if (shouldUseHostedApiInProduction) {
-      logDesktopMessage(
-        `Skipping embedded backend. Using hosted desktop API at ${productionApiBaseUrl}.`,
-      );
-    }
+  if (shouldUseDevServer || backendServer) {
     return;
   }
 
@@ -518,7 +666,13 @@ const startEmbeddedBackend = async () => {
       `Embedded backend is listening on http://127.0.0.1:${productionBackendPort}.`,
     );
   } catch (error) {
-    logDesktopMessage("Embedded backend failed to start.", error);
+    writeSystemLog(
+      "error",
+      "EMBEDDED_BACKEND",
+      "Embedded backend failed to start.",
+      undefined,
+      error,
+    );
     throw error;
   }
 };
@@ -577,8 +731,15 @@ const loadRendererWithRetry = async (
       return;
     } catch (error) {
       lastError = error;
-      logDesktopMessage(
+      writeSystemLog(
+        "warn",
+        "RENDERER",
         `Renderer load attempt ${attempt} failed for ${targetUrl}.`,
+        {
+          attempt,
+          maxAttempts,
+          targetUrl,
+        },
         error,
       );
 
@@ -624,6 +785,7 @@ const createMainWindow = async () => {
     logDesktopMessage(
       `Renderer finished loading ${mainWindow?.webContents.getURL() ?? frontendEntry}.`,
     );
+    flushRendererSystemLogs();
 
     // `ready-to-show` can be flaky with dev-server loads and heavy renderer startup.
     // Reveal the main window once the document has finished loading as a fallback.
@@ -638,8 +800,15 @@ const createMainWindow = async () => {
   mainWindow.webContents.on(
     "did-fail-load",
     (_event, errorCode, errorDescription, validatedURL) => {
-      logDesktopMessage(
+      writeSystemLog(
+        "error",
+        "RENDERER",
         `Renderer failed to load ${validatedURL} (${errorCode}: ${errorDescription}).`,
+        {
+          errorCode,
+          errorDescription,
+          validatedURL,
+        },
       );
     },
   );
@@ -655,22 +824,34 @@ const createMainWindow = async () => {
   });
 
   mainWindow.webContents.on("preload-error", (_event, preloadPath, error) => {
-    logDesktopMessage(`Preload script failed: ${preloadPath}.`, error);
+    writeSystemLog(
+      "error",
+      "PRELOAD",
+      `Preload script failed: ${preloadPath}.`,
+      {
+        preloadPath,
+      },
+      error,
+    );
   });
 
   mainWindow.webContents.on("console-message", (details) => {
-    const { level, message, lineNumber, sourceId } = details;
-    const shouldLogRendererMessage =
-      !shouldUseDevServer ||
-      shouldAutoOpenDevTools ||
-      level === "warning" ||
-      level === "error";
-
-    if (shouldLogRendererMessage) {
-      logDesktopMessage(
-        `Renderer console [${level}] ${sourceId}:${lineNumber} ${message}`,
-      );
+    if (!shouldForwardRendererConsole) {
+      return;
     }
+
+    const { level, message, lineNumber, sourceId } = details;
+    writeSystemLog(
+      level === "error" ? "error" : level === "warning" ? "warn" : "debug",
+      "RENDERER_CONSOLE",
+      `Renderer console ${sourceId}:${lineNumber}`,
+      {
+        consoleLevel: level,
+        sourceId,
+        lineNumber,
+        message,
+      },
+    );
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
@@ -867,15 +1048,16 @@ const buildMenu = async () => {
   Menu.setApplicationMenu(menu);
 };
 
-ipcMain.handle("desktop:run-code", async (_event, payload: DesktopRunPayload) =>
-  invokeBackend("/execute", payload),
+handleIpc("desktop:run-code", async (_event, payload) =>
+  invokeBackend("/execute", payload as DesktopRunPayload),
 );
 
-ipcMain.handle(
+handleIpc(
   "desktop:open-file",
-  async (_event, payload?: { filePath?: string | null }) => {
-    if (payload?.filePath) {
-      return loadFileFromPath(payload.filePath);
+  async (_event, payload) => {
+    const request = payload as { filePath?: string | null } | undefined;
+    if (request?.filePath) {
+      return loadFileFromPath(request.filePath);
     }
 
     const options: OpenDialogOptions = {
@@ -895,7 +1077,8 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("desktop:save-file", async (_event, payload: DesktopFilePayload) => {
+handleIpc("desktop:save-file", async (_event, rawPayload) => {
+  const payload = rawPayload as DesktopFilePayload;
   let targetPath = payload.filePath ?? null;
 
   if (!targetPath) {
@@ -926,12 +1109,17 @@ ipcMain.handle("desktop:save-file", async (_event, payload: DesktopFilePayload) 
   };
 });
 
-ipcMain.handle(
+handleIpc(
   "desktop:save-snippet-locally",
   async (
     _event,
-    payload: { title: string; language: SupportedLanguage; code: string },
+    rawPayload,
   ): Promise<LocalSnippetRecord> => {
+    const payload = rawPayload as {
+      title: string;
+      language: SupportedLanguage;
+      code: string;
+    };
     const directory = await ensureSnippetDirectory();
     const safeTitle = path
       .basename(
@@ -957,7 +1145,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle(
+handleIpc(
   "desktop:get-local-snippets",
   async (): Promise<LocalSnippetRecord[]> => {
     const directory = await ensureSnippetDirectory();
@@ -988,7 +1176,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("desktop:open-local-snippet", async () => {
+handleIpc("desktop:open-local-snippet", async () => {
   const options: OpenDialogOptions = {
     title: "Open Local CodeSight Snippet",
     properties: ["openFile"],
@@ -1024,31 +1212,42 @@ ipcMain.handle("desktop:open-local-snippet", async () => {
   };
 });
 
-ipcMain.handle("desktop:get-recent-files", async () => readRecentFiles());
+handleIpc("desktop:get-recent-files", async () => readRecentFiles());
 
-ipcMain.handle("auth-storage:get", async (_event, key: string) => {
+handleIpc("auth-storage:get", async (_event, rawKey) => {
+  const key = rawKey as string;
   const store = await readAuthStorageStore();
 
   try {
     return decryptPersistedAuthValue(store[key]);
   } catch (error) {
-    logDesktopMessage(`Unable to decrypt auth storage key "${key}".`, error);
+    writeSystemLog(
+      "error",
+      "AUTH_STORAGE",
+      `Unable to decrypt auth storage key "${key}".`,
+      {
+        key,
+      },
+      error,
+    );
     delete store[key];
     await writeAuthStorageStore(store);
     return null;
   }
 });
 
-ipcMain.handle(
+handleIpc(
   "auth-storage:set",
-  async (_event, payload: { key: string; value: string }) => {
+  async (_event, rawPayload) => {
+    const payload = rawPayload as { key: string; value: string };
     const store = await readAuthStorageStore();
     store[payload.key] = encryptPersistedAuthValue(payload.value);
     await writeAuthStorageStore(store);
   },
 );
 
-ipcMain.handle("auth-storage:remove", async (_event, key: string) => {
+handleIpc("auth-storage:remove", async (_event, rawKey) => {
+  const key = rawKey as string;
   const store = await readAuthStorageStore();
 
   if (key in store) {
@@ -1060,11 +1259,11 @@ ipcMain.handle("auth-storage:remove", async (_event, key: string) => {
 const getSenderWindow = (event: Electron.IpcMainInvokeEvent) =>
   BrowserWindow.fromWebContents(event.sender);
 
-ipcMain.handle("window:minimize", async (event) => {
+handleIpc("window:minimize", async (event) => {
   getSenderWindow(event)?.minimize();
 });
 
-ipcMain.handle("window:toggle-maximize", async (event) => {
+handleIpc("window:toggle-maximize", async (event) => {
   const senderWindow = getSenderWindow(event);
 
   if (!senderWindow) {
@@ -1080,11 +1279,11 @@ ipcMain.handle("window:toggle-maximize", async (event) => {
   return true;
 });
 
-ipcMain.handle("window:is-maximized", async (event) =>
+handleIpc("window:is-maximized", async (event) =>
   getSenderWindow(event)?.isMaximized() ?? false,
 );
 
-ipcMain.handle("window:close", async (event) => {
+handleIpc("window:close", async (event) => {
   getSenderWindow(event)?.close();
 });
 
@@ -1113,7 +1312,13 @@ app.whenReady().then(async () => {
       focusExistingWindow();
     });
   } catch (error) {
-    logDesktopMessage("Desktop startup failed.", error);
+    writeSystemLog(
+      "error",
+      "ELECTRON_MAIN",
+      "Desktop startup failed.",
+      undefined,
+      error,
+    );
     throw error;
   }
 });
@@ -1129,9 +1334,21 @@ app.on("before-quit", async () => {
 });
 
 process.on("uncaughtException", (error) => {
-  logDesktopMessage("Uncaught exception in Electron main process.", error);
+  writeSystemLog(
+    "error",
+    "ELECTRON_MAIN",
+    "Uncaught exception in Electron main process.",
+    undefined,
+    error,
+  );
 });
 
 process.on("unhandledRejection", (reason) => {
-  logDesktopMessage("Unhandled promise rejection in Electron main process.", reason);
+  writeSystemLog(
+    "error",
+    "ELECTRON_MAIN",
+    "Unhandled promise rejection in Electron main process.",
+    undefined,
+    reason,
+  );
 });

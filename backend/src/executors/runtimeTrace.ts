@@ -1,15 +1,18 @@
 import {
   createEmptyExecutionTrace,
-  type ExecutionDiagnostic,
   type ExecutionLimits,
   type ExecutionMetrics,
   type ExecutionPhaseName,
   type ExecutionPhaseResult,
-  type ExecutionStatus,
   type ExecutionStdinSummary,
   type ExecutionTrace,
   type SupportedLanguage,
 } from "../types/execution";
+import { createStructuredLogger } from "../logging/logger";
+import {
+  classifyExecutionOutcome,
+  collectExecutionDiagnostics,
+} from "./executionDiagnostics";
 
 export const summarizeStdin = (stdin: string): ExecutionStdinSummary => {
   const normalized = stdin.replace(/\r\n/g, "\n");
@@ -57,114 +60,20 @@ export const setPhase = (
   }
 };
 
-const buildTimeoutSuggestion = (
-  language: SupportedLanguage,
-  stdinSummary: ExecutionStdinSummary,
-) => {
-  if (!stdinSummary.provided) {
-    return "If this program expects standard input, add it in the Program Input panel before running again.";
-  }
-
-  if (language === "java" || language === "c" || language === "cpp") {
-    return "Check for very large loops, unbounded recursion, or blocked input reads.";
-  }
-
-  return "Check for infinite loops, blocked input reads, or very large data processing.";
-};
-
-const classifyTrace = (
-  trace: ExecutionTrace,
-  language: SupportedLanguage,
-): {
-  status: ExecutionStatus;
-  error: string;
-  diagnostics: ExecutionDiagnostic[];
-} => {
-  const diagnostics: ExecutionDiagnostic[] = [];
-  const compilePhase = trace.phases.compile;
-  const runPhase = trace.phases.run;
-
-  if (compilePhase?.status === "timed_out") {
-    const detail =
-      compilePhase.stderr.trim() ||
-      `Compilation exceeded ${trace.limits.compileTimeoutMs}ms.`;
-    diagnostics.push({
-      category: "timeout",
-      summary: "Compilation timed out.",
-      detail,
-      suggestion:
-        "Reduce template/macros complexity or try again with a smaller compile unit.",
-    });
-    return {
-      status: "timed_out",
-      error: `Compilation timed out after ${trace.limits.compileTimeoutMs}ms.`,
-      diagnostics,
-    };
-  }
-
-  if (compilePhase && compilePhase.status === "failed") {
-    const detail = compilePhase.stderr.trim() || compilePhase.stdout.trim();
-    diagnostics.push({
-      category: "compile",
-      summary: "Compilation failed.",
-      detail: detail || "The compiler reported an error.",
-      suggestion:
-        language === "java"
-          ? "Make sure the public entry class is named Main and all syntax errors are fixed."
-          : "Fix the reported syntax or type errors and run again.",
-    });
-    return {
-      status: "compile_error",
-      error: detail || "Compilation failed.",
-      diagnostics,
-    };
-  }
-
-  if (runPhase?.timedOut || runPhase?.status === "timed_out") {
-    const detail =
-      runPhase.stderr.trim() ||
-      `Program execution exceeded ${trace.limits.runTimeoutMs}ms.`;
-    diagnostics.push({
-      category: "timeout",
-      summary: "Program execution timed out.",
-      detail,
-      suggestion: buildTimeoutSuggestion(language, trace.stdin),
-    });
-    return {
-      status: "timed_out",
-      error: `Execution timed out after ${trace.limits.runTimeoutMs}ms.`,
-      diagnostics,
-    };
-  }
-
-  if (runPhase && runPhase.status === "failed") {
-    const detail = runPhase.stderr.trim() || runPhase.stdout.trim();
-    diagnostics.push({
-      category: "runtime",
-      summary: "Program failed during execution.",
-      detail: detail || "The program exited with a non-zero status.",
-      suggestion:
-        "Inspect the runtime output and error stream for exceptions, invalid input handling, or segmentation faults.",
-    });
-    return {
-      status: "runtime_error",
-      error: detail || "Program execution failed.",
-      diagnostics,
-    };
-  }
-
-  return {
-    status: "completed",
-    error: "",
-    diagnostics,
-  };
-};
-
 export const finalizeTrace = (
   trace: ExecutionTrace,
   language: SupportedLanguage,
   runtimeMetrics?: Partial<ExecutionMetrics>,
 ) => {
+  const logger = createStructuredLogger({
+    scope: "TRACE_RESULT",
+    trace,
+    defaultContext: {
+      executionId: trace.executionId,
+      traceId: trace.traceId,
+      language,
+    },
+  });
   trace.metrics = {
     ...trace.metrics,
     ...runtimeMetrics,
@@ -173,10 +82,37 @@ export const finalizeTrace = (
       (runtimeMetrics?.runTimeMs ?? trace.metrics.runTimeMs),
   };
   trace.executionTime = trace.metrics.executionTimeMs;
-  const classification = classifyTrace(trace, language);
+  const diagnostics = collectExecutionDiagnostics(language, [
+    trace.phases.compile,
+    trace.phases.run,
+    trace.phases.trace,
+  ]);
+  const classification = classifyExecutionOutcome({
+    language,
+    compilePhase: trace.phases.compile,
+    runPhase: trace.phases.run,
+    tracePhase: trace.phases.trace,
+    systemLogs: trace.logs.system,
+    diagnostics,
+    stdinProvided: trace.stdin.provided,
+  });
   trace.status = classification.status;
   trace.error = classification.error;
+  trace.failurePhase = classification.failurePhase;
   trace.timedOut = classification.status === "timed_out";
   trace.diagnostics = classification.diagnostics;
+  trace.completedAt = new Date().toISOString();
+  logger.runtime("Execution trace finalized.", {
+    phase: classification.failurePhase ?? "system",
+    durationMs: trace.executionTime,
+    details: {
+      status: trace.status,
+      diagnosticCount: trace.diagnostics.length,
+      stepCount: trace.traceFrames.length,
+      outputLineCount: trace.outputLines.length,
+      traceQuality: trace.traceSummary.quality,
+      traceStatus: trace.traceSummary.status,
+    },
+  });
   return trace;
 };

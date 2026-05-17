@@ -15,12 +15,7 @@
     "electron:watch": "tsc -p electron/tsconfig.json --watch --preserveWatchOutput",
     "electron:dev": "npm run build:electron && wait-on file:electron/dist/main.js file:electron/dist/preload.js http-get://127.0.0.1:4000/health http-get://127.0.0.1:5180 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5180 CODESIGHT_BACKEND_URL=http://127.0.0.1:4000 electron electron/dist/main.js",
     "electron:start": "npm run build && electron .",
-    "electron:build": "npm run build && electron-builder",
-    "docker:build": "npm run docker:build:runners && npm run docker:build:api && npm run docker:build:executor",
-    "docker:build:runners": "docker build -f docker/Dockerfile.node -t codesight-node-runner . && docker build -f docker/Dockerfile.python -t codesight-python-runner . && docker build -f docker/Dockerfile.cpp -t codesight-cpp-runner . && docker build -f docker/Dockerfile.java -t codesight-java-runner .",
-    "docker:build:api": "docker build -f docker/Dockerfile.api -t codesight-api .",
-    "docker:build:executor": "docker build -f docker/Dockerfile.executor -t codesight-executor .",
-    "docker:compose:prod": "docker compose -f docker-compose.production.yml up -d"
+    "electron:build": "npm run build && electron-builder"
   },
   "keywords": [
     "codesight",
@@ -57,7 +52,6 @@
     },
     "files": [
       "electron/dist/**/*",
-      "electron/desktop.config.json",
       "electron/splash.html",
       "electron/assets/**/*",
       "frontend/dist/**/*",

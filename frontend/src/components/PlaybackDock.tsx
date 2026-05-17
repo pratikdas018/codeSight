@@ -36,7 +36,7 @@ export const PlaybackDock = ({
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-1.5 font-mono text-[11px] text-[#dfffe5]">
-                {hasTrace ? `Step ${currentStepIndex + 1}/${stepCount}` : "No trace"}
+                {hasTrace ? `Frame ${currentStepIndex + 1}/${stepCount}` : "No trace"}
               </span>
               <span className="rounded-full border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-1.5 font-mono text-[11px] text-[#84967e]">
                 {activeLine ? `Line ${activeLine}` : "Waiting"}
@@ -80,7 +80,10 @@ export const PlaybackDock = ({
               type="button"
               onClick={onTogglePlayback}
               disabled={!hasTrace}
-              className="cs-button cs-button-primary rounded-xl px-4 disabled:cursor-not-allowed disabled:opacity-40"
+              className={clsx(
+                "cs-button cs-button-primary rounded-xl px-4 disabled:cursor-not-allowed disabled:opacity-40",
+                hasTrace ? "shadow-[0_0_24px_rgba(0,255,65,0.22)]" : "",
+              )}
             >
               <span className="material-symbols-outlined text-[18px]">
                 {isPlaying ? "pause" : "play_arrow"}

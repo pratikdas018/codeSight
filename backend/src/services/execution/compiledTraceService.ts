@@ -4,6 +4,7 @@ import type {
   SupportedLanguage,
   VariableSnapshot,
 } from "../../types/execution";
+import type { StructuredLogger } from "../../logging/logger";
 
 type RuntimePrimitive = number | string;
 type RuntimeArrayValue = Array<RuntimePrimitive | null>;
@@ -218,6 +219,7 @@ class CompiledTraceInterpreter {
     code: string,
     private readonly language: Extract<SupportedLanguage, "c" | "cpp" | "java">,
     outputLines: string[],
+    private readonly logger?: StructuredLogger,
   ) {
     const parsed = parseFunctions(code);
     this.functions = parsed.functions;
@@ -226,13 +228,42 @@ class CompiledTraceInterpreter {
   }
 
   run() {
-    this.executeLines(this.globalLines, this.rootContext);
+    this.logger?.trace("Starting compiled trace walkthrough.", {
+      phase: "trace",
+      language: this.language,
+      details: {
+        functionCount: this.functions.size,
+        globalLineCount: this.globalLines.length,
+        outputLineCount: this.finalOutputLines.length,
+      },
+    });
 
-    if (this.functions.has("main")) {
-      this.executeFunction("main", [], this.rootContext, null);
+    try {
+      this.executeLines(this.globalLines, this.rootContext);
+
+      if (this.functions.has("main")) {
+        this.executeFunction("main", [], this.rootContext, null);
+      }
+
+      this.logger?.trace("Compiled trace walkthrough completed.", {
+        phase: "trace",
+        language: this.language,
+        details: {
+          capturedSteps: this.steps.length,
+        },
+      });
+
+      return this.steps;
+    } catch (error) {
+      this.logger?.error("Compiled trace walkthrough failed.", error, {
+        phase: "trace",
+        language: this.language,
+        details: {
+          capturedSteps: this.steps.length,
+        },
+      });
+      throw error;
     }
-
-    return this.steps;
   }
 
   private executeLines(lines: SourceLine[], context: ExecutionContext) {
@@ -1062,7 +1093,8 @@ export const createCompiledLanguageWalkthrough = (
   code: string,
   language: Extract<SupportedLanguage, "c" | "cpp" | "java">,
   outputLines: string[],
+  logger?: StructuredLogger,
 ): ExecutionStep[] => {
-  const interpreter = new CompiledTraceInterpreter(code, language, outputLines);
+  const interpreter = new CompiledTraceInterpreter(code, language, outputLines, logger);
   return interpreter.run();
 };

@@ -6,8 +6,13 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { env } from "./config/env";
 import executionRoutes from "./routes/executionRoutes";
+import {
+  getRuntimeManagerSnapshot,
+  primeRuntimeManagerSnapshot,
+} from "./services/runtimeManagerService";
 
 const app = express();
+primeRuntimeManagerSnapshot();
 
 const isOriginAllowed = (origin?: string) =>
   !origin ||
@@ -54,13 +59,34 @@ app.use(
 app.use(compression());
 app.use(express.json({ limit: env.bodyLimit }));
 
-app.get("/health", (_request, response) => {
-  response.json({
-    status: "ok",
-    service: "api",
-    executorMode: env.executorMode,
-    executionProvider: env.executionProvider,
-  });
+app.get("/health", async (_request, response, next) => {
+  try {
+    const runtimeManager = await getRuntimeManagerSnapshot();
+
+    response.json({
+      status: "ok",
+      service: "api",
+      executorMode: env.executorMode,
+      executionProvider: env.executionProvider,
+      runtimeManager,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/runtimes", async (request, response, next) => {
+  try {
+    const refreshRequested =
+      request.query.refresh === "1" || request.query.refresh === "true";
+    const runtimeManager = await getRuntimeManagerSnapshot({
+      refresh: refreshRequested,
+    });
+
+    response.json(runtimeManager);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use("/execute", executeLimiter);

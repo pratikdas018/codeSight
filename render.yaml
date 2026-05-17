@@ -1,12 +1,12 @@
 services:
   - type: web
     name: codesight-api
-    runtime: docker
+    runtime: node
     plan: starter
     region: singapore
-    dockerfilePath: ./docker/Dockerfile.api
-    dockerContext: .
-    autoDeployTrigger: off
+    rootDir: .
+    buildCommand: npm install && npm run build --prefix backend
+    startCommand: npm run start --prefix backend
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -16,11 +16,7 @@ services:
       - key: TRUST_PROXY
         value: true
       - key: EXECUTOR_MODE
-        value: remote
-      - key: REMOTE_EXECUTOR_URL
-        sync: false
-      - key: EXECUTOR_SHARED_SECRET
-        sync: false
+        value: local
       - key: RATE_LIMIT_WINDOW_MS
         value: 60000
       - key: RATE_LIMIT_MAX

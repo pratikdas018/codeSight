@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "start:api": "node dist/index.js",
-    "start:executor": "node dist/executorIndex.js"
+    "start:executor": "node dist/executorIndex.js",
+    "verify:engine": "tsx src/scripts/verifyExecutionEngine.ts"
   },
   "keywords": [
     "codesight",

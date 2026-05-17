@@ -16,6 +16,7 @@ import { CodeSightLogo } from "../components/CodeSightLogo";
 import { ExecutionVisualizer } from "../components/ExecutionVisualizer";
 import { FooterBar } from "../components/FooterBar";
 import { PlaybackDock } from "../components/PlaybackDock";
+import { RuntimeManagerPanel } from "../components/RuntimeManagerPanel";
 import { ToastViewport } from "../components/ToastViewport";
 import { useAuth } from "../hooks/useAuth";
 import { usePlayback } from "../hooks/usePlayback";
@@ -27,7 +28,12 @@ import {
   listSnippets,
   updateSnippet,
 } from "../services/snippetService";
-import { executeCodeRequest, fetchRuntimeHealth } from "../utils/api";
+import {
+  executeCodeRequest,
+  fetchRuntimeHealth,
+  fetchRuntimeManager,
+  type RuntimeManagerSnapshot,
+} from "../utils/api";
 import type { ExecutionTrace } from "../engine/types";
 import type {
   CodeSnippet,
@@ -46,10 +52,29 @@ import {
   formatDuration,
   formatMemoryUsage,
 } from "../utils/formatters";
+import { createRendererLogger, logExecutionTrace } from "../utils/logger";
 import { createVisualizationModel } from "../visualization/model";
 
+const createClientLogId = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 const createEmptyTrace = (language: SupportedLanguage): ExecutionTrace => ({
+  executionId: createClientLogId(),
+  traceId: createClientLogId(),
+  startedAt: new Date().toISOString(),
+  completedAt: null,
   steps: [],
+  traceFrames: [],
+  traceSummary: {
+    available: false,
+    frameCount: 0,
+    quality: "empty",
+    source: "uninitialized",
+    status: "empty",
+    message: "Run your program to generate a visualization timeline.",
+    error: "",
+  },
   output: "",
   outputLines: [],
   error: "",
@@ -57,15 +82,24 @@ const createEmptyTrace = (language: SupportedLanguage): ExecutionTrace => ({
   timedOut: false,
   language,
   status: "completed",
+  failurePhase: null,
   phases: {
     compile: null,
     run: null,
+    trace: null,
+  },
+  mode: {
+    selected: "trace",
+    autoSelected: true,
+    reason: "CodeSight has not analyzed this program yet.",
+    traceStrategy: "full",
   },
   limits: {
     queueConcurrency: 1,
     queueDepthLimit: 0,
     compileTimeoutMs: 0,
     runTimeoutMs: 0,
+    traceTimeoutMs: 0,
     memoryLimitMb: 0,
     cpuLimit: 0,
     pidsLimit: 0,
@@ -79,6 +113,10 @@ const createEmptyTrace = (language: SupportedLanguage): ExecutionTrace => ({
     peakMemoryKb: null,
   },
   diagnostics: [],
+  logs: {
+    system: [],
+    entries: [],
+  },
   stdin: {
     provided: false,
     lineCount: 0,
@@ -134,12 +172,14 @@ interface RuntimeHealthSnapshot {
   connection: "checking" | "online" | "offline";
   executorMode: "local" | "remote";
   executionProvider: string;
+  runtimeManager: RuntimeManagerSnapshot | null;
 }
 
 const defaultRuntimeHealth: RuntimeHealthSnapshot = {
   connection: "checking",
   executorMode: "local",
   executionProvider: "local",
+  runtimeManager: null,
 };
 
 const monacoThemeMap: Record<ThemeMode, string> = {
@@ -287,6 +327,31 @@ const summarizeOutput = (lines: string[]) => {
   return lines[lines.length - 1];
 };
 
+const normalizeTracePayload = (incomingTrace: ExecutionTrace): ExecutionTrace => {
+  const frames =
+    incomingTrace.traceFrames?.length > 0
+      ? incomingTrace.traceFrames
+      : incomingTrace.steps ?? [];
+
+  return {
+    ...incomingTrace,
+    steps: frames,
+    traceFrames: frames,
+    traceSummary: incomingTrace.traceSummary ?? {
+      available: frames.length > 0,
+      frameCount: frames.length,
+      quality: frames.length > 0 ? "full" : "empty",
+      source: "legacy-response",
+      status: frames.length > 0 ? "ready" : "empty",
+      message:
+        frames.length > 0
+          ? `Playback is ready with ${frames.length} execution frame${frames.length === 1 ? "" : "s"}.`
+          : "Run your program to generate a visualization timeline.",
+      error: "",
+    },
+  };
+};
+
 const buildPlainEnglishSummary = (lineText: string, language: SupportedLanguage) => {
   const trimmed = lineText.trim();
 
@@ -348,6 +413,10 @@ interface HomePageProps {
 }
 
 export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
+  const rendererLogger = useMemo(
+    () => createRendererLogger("WORKBENCH"),
+    [],
+  );
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     useState<WorkspaceTab>("explorer");
   const [activeRailSection, setActiveRailSection] =
@@ -385,6 +454,8 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const [recentFiles, setRecentFiles] = useState<RecentFileRecord[]>([]);
   const [runtimeHealth, setRuntimeHealth] =
     useState<RuntimeHealthSnapshot>(defaultRuntimeHealth);
+  const [isRefreshingRuntimeManager, setIsRefreshingRuntimeManager] =
+    useState(false);
   const { user, logout } = useAuth();
   const isDesktop = Boolean(window.electronAPI?.env.isElectron);
 
@@ -404,8 +475,11 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const accountSectionRef = useRef<HTMLDivElement | null>(null);
 
   const stepDurationMs = Math.round(900 / playbackRate);
+  const playbackFrames =
+    trace.traceFrames.length > 0 ? trace.traceFrames : trace.steps;
+
   const { isPlaying, togglePlayback, stopPlayback, setIsPlaying } = usePlayback(
-    trace.steps.length,
+    playbackFrames.length,
     setCurrentStepIndex,
     stepDurationMs,
   );
@@ -449,11 +523,16 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
           connection: "online",
           executorMode: health.executorMode,
           executionProvider: health.executionProvider,
+          runtimeManager: health.runtimeManager,
         });
       } catch {
         if (!isMounted) {
           return;
         }
+
+        rendererLogger.debug("Runtime health polling failed.", {
+          backendUrl: window.electronAPI?.env.backendUrl ?? "",
+        });
 
         setRuntimeHealth((current) => ({
           ...current,
@@ -473,13 +552,48 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     };
   }, []);
 
-  const activeStep = trace.steps[currentStepIndex] ?? null;
+  const refreshRuntimeManager = useEffectEvent(async () => {
+    setIsRefreshingRuntimeManager(true);
+
+    try {
+      const runtimeManager = await fetchRuntimeManager({ refresh: true });
+      setRuntimeHealth((current) => ({
+        ...current,
+        connection: "online",
+        runtimeManager,
+      }));
+    } catch {
+      setRuntimeHealth((current) => ({
+        ...current,
+        connection: "offline",
+      }));
+      rendererLogger.error(
+        "Runtime Manager refresh failed in the renderer.",
+        undefined,
+        {
+          backendUrl: window.electronAPI?.env.backendUrl ?? "",
+        },
+      );
+      setNotice({
+        tone: "error",
+        message:
+          "CodeSight could not refresh local runtime status. Make sure the embedded backend is still running.",
+      });
+    } finally {
+      setIsRefreshingRuntimeManager(false);
+    }
+  });
+
+  const activeStep = playbackFrames[currentStepIndex] ?? null;
   const previousStep =
-    currentStepIndex > 0 ? trace.steps[currentStepIndex - 1] ?? null : null;
+    currentStepIndex > 0 ? playbackFrames[currentStepIndex - 1] ?? null : null;
   const consoleOutput =
+    activeStep?.stdout ??
     activeStep?.output ??
-    (trace.steps.length > 0
-      ? trace.steps[trace.steps.length - 1]?.output ?? trace.outputLines
+    (playbackFrames.length > 0
+      ? playbackFrames[playbackFrames.length - 1]?.stdout ??
+        playbackFrames[playbackFrames.length - 1]?.output ??
+        trace.outputLines
       : trace.outputLines);
   const visualizationModel = useMemo(
     () => createVisualizationModel(activeStep, previousStep),
@@ -508,25 +622,26 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     (variable) => variable.change !== "unchanged",
   );
   const primaryArray = visualizationModel.arrays[0] ?? null;
-  const stackFrames = trace.steps
+  const stackFrames = playbackFrames
     .slice(Math.max(0, currentStepIndex - 2), currentStepIndex + 1)
     .reverse();
-  const flowWindow = trace.steps.slice(
+  const flowWindow = playbackFrames.slice(
     Math.max(0, currentStepIndex - 2),
-    Math.min(trace.steps.length, currentStepIndex + 3),
+    Math.min(playbackFrames.length, currentStepIndex + 3),
   );
   const timelineProgress =
-    trace.steps.length <= 1
-      ? trace.steps.length === 1
+    playbackFrames.length <= 1
+      ? playbackFrames.length === 1
         ? 100
         : 0
-      : (currentStepIndex / (trace.steps.length - 1)) * 100;
+      : (currentStepIndex / (playbackFrames.length - 1)) * 100;
   const deferredCode = useDeferredValue(code);
   const codeLines = useMemo(() => deferredCode.split(/\r?\n/), [deferredCode]);
   const activeLineCode =
-    activeStep?.line && activeStep.line > 0
+    activeStep?.codeLine?.trim() ||
+    (activeStep?.line && activeStep.line > 0
       ? codeLines[activeStep.line - 1]?.trim() ?? ""
-      : "";
+      : "");
   const plainEnglishSummary = buildPlainEnglishSummary(activeLineCode, language);
   const changedVariableSummary =
     changedVariables.length > 0
@@ -534,11 +649,11 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
           .slice(0, 3)
           .map((variable) => `${variable.name} = ${variable.currentValue}`)
           .join(" | ")
-      : trace.steps.length === 0
+      : playbackFrames.length === 0
         ? "No variables yet. Press Run to capture state changes."
         : "This step did not change any tracked variables.";
   const beginnerChecklist =
-    trace.steps.length === 0
+    playbackFrames.length === 0
       ? [
           "Paste code or use the starter example.",
           "Pick the correct language from the top bar.",
@@ -684,6 +799,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message: `Loaded "${resolvedName ?? "local file"}" into the editor.`,
       });
     } catch (error) {
+      rendererLogger.error("Desktop file open failed.", error, {
+        requestedPath: filePath ?? "",
+      });
       setNotice({
         tone: "error",
         message:
@@ -721,6 +839,10 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message: `Saved "${nextFileName}" to your device.`,
       });
     } catch (error) {
+      rendererLogger.error("Desktop file save failed.", error, {
+        filePath: desktopFilePath ?? "",
+        language,
+      });
       setNotice({
         tone: "error",
         message:
@@ -750,6 +872,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message: `Saved "${savedSnippet.title}" as a local CodeSight snippet.`,
       });
     } catch (error) {
+      rendererLogger.error("Local snippet save failed.", error, {
+        language,
+      });
       setNotice({
         tone: "error",
         message:
@@ -789,6 +914,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message: `Loaded local snippet "${result.snippet.title}".`,
       });
     } catch (error) {
+      rendererLogger.error("Local snippet open failed.", error);
       setNotice({
         tone: "error",
         message:
@@ -810,6 +936,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     }
 
     refreshWorkspaceData().catch((error) => {
+      rendererLogger.error("Workspace data refresh failed.", error, {
+        userId: user.id,
+      });
       setNotice({
         tone: "error",
         message:
@@ -862,10 +991,69 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   }, [handleDesktopMenuAction]);
 
   useEffect(() => {
-    if (currentStepIndex >= trace.steps.length && trace.steps.length > 0) {
-      setCurrentStepIndex(trace.steps.length - 1);
+    if (currentStepIndex >= playbackFrames.length && playbackFrames.length > 0) {
+      setCurrentStepIndex(playbackFrames.length - 1);
     }
-  }, [currentStepIndex, trace.steps.length]);
+  }, [currentStepIndex, playbackFrames.length]);
+
+  useEffect(() => {
+    if (isExecuting) {
+      return;
+    }
+
+    if (playbackFrames.length > 0) {
+      rendererLogger.runtime("Playback frames initialized in the renderer.", {
+        executionId: trace.executionId,
+        traceId: trace.traceId,
+        language: trace.language,
+        frameCount: playbackFrames.length,
+        traceStatus: trace.traceSummary.status,
+        traceQuality: trace.traceSummary.quality,
+      });
+      return;
+    }
+
+    if (trace.status === "completed") {
+      rendererLogger.warn("Execution completed without playback frames in the renderer.", {
+        executionId: trace.executionId,
+        traceId: trace.traceId,
+        language: trace.language,
+        traceStatus: trace.traceSummary.status,
+        traceError: trace.traceSummary.error,
+      });
+    }
+  }, [
+    isExecuting,
+    playbackFrames.length,
+    rendererLogger,
+    trace.executionId,
+    trace.language,
+    trace.status,
+    trace.traceId,
+    trace.traceSummary.error,
+    trace.traceSummary.quality,
+    trace.traceSummary.status,
+  ]);
+
+  const focusDiagnostic = useEffectEvent(
+    (diagnostic: ExecutionTrace["diagnostics"][number]) => {
+      if (!diagnostic.line) {
+        return;
+      }
+
+      const editor = editorRef.current;
+      const monaco = monacoRef.current;
+
+      if (!editor || !monaco) {
+        return;
+      }
+
+      const column = Math.max(1, diagnostic.column ?? 1);
+      editor.focus();
+      editor.setPosition({ lineNumber: diagnostic.line, column });
+      editor.revealPositionInCenter({ lineNumber: diagnostic.line, column });
+    },
+  );
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -1012,6 +1200,49 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     [],
   );
 
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    const model = editor?.getModel();
+
+    if (!editor || !monaco || !model) {
+      return;
+    }
+
+    const markers = trace.diagnostics
+      .filter((diagnostic) => typeof diagnostic.line === "number")
+      .map((diagnostic) => ({
+        startLineNumber: Math.max(1, diagnostic.line ?? 1),
+        startColumn: Math.max(1, diagnostic.column ?? 1),
+        endLineNumber: Math.max(
+          1,
+          diagnostic.endLine ?? diagnostic.line ?? 1,
+        ),
+        endColumn: Math.max(
+          2,
+          diagnostic.endColumn ??
+            (diagnostic.column ?? 1) + 1,
+        ),
+        severity:
+          diagnostic.severity === "warning"
+            ? monaco.MarkerSeverity.Warning
+            : diagnostic.severity === "info"
+              ? monaco.MarkerSeverity.Info
+              : monaco.MarkerSeverity.Error,
+        source: diagnostic.source,
+        code: diagnostic.code,
+        message: [diagnostic.summary, diagnostic.detail]
+          .filter(Boolean)
+          .join("\n\n"),
+      }));
+
+    monaco.editor.setModelMarkers(model, "codesight-runtime", markers);
+
+    return () => {
+      monaco.editor.setModelMarkers(model, "codesight-runtime", []);
+    };
+  }, [language, trace.diagnostics]);
+
   const runCode = async () => {
     stopPlayback();
     executionStartedAtRef.current = Date.now();
@@ -1019,7 +1250,11 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     setIsExecuting(true);
 
     try {
-      const nextTrace = await executeCodeRequest(code, language, programInput);
+      const rawTrace = await executeCodeRequest(code, language, programInput);
+      const nextTrace = normalizeTracePayload(rawTrace);
+      logExecutionTrace(nextTrace, {
+        trigger: "runCode",
+      });
       setTrace(nextTrace);
       setExecutionElapsedMs(nextTrace.executionTime);
       setRuntimeHealth((current) => ({
@@ -1028,8 +1263,11 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       }));
       setCurrentStepIndex(0);
       setIsPlaying(false);
-      setActiveWorkspaceTab(nextTrace.steps.length > 0 ? "debugger" : "explorer");
-      setActiveRailSection(nextTrace.steps.length > 0 ? "variables" : "guide");
+      const nextPlaybackFrames =
+        nextTrace.traceFrames.length > 0 ? nextTrace.traceFrames : nextTrace.steps;
+
+      setActiveWorkspaceTab(nextPlaybackFrames.length > 0 ? "debugger" : "explorer");
+      setActiveRailSection(nextPlaybackFrames.length > 0 ? "variables" : "guide");
 
       if (nextTrace.status !== "completed") {
         const primaryDiagnostic = nextTrace.diagnostics[0];
@@ -1041,12 +1279,21 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
           tone: "error",
           message: `${languageLabels[language]} ${nextTrace.status.replace(/_/g, " ")} in ${nextTrace.executionTime}ms. ${((primaryDiagnostic?.summary ?? nextTrace.error) || "Execution failed.")}${timeoutHint}`,
         });
+        if (primaryDiagnostic?.line) {
+          focusDiagnostic(primaryDiagnostic);
+        }
+
+        if (nextTrace.status === "runtime_missing") {
+          void refreshRuntimeManager();
+        }
       } else {
         setNotice({
           tone: "success",
           message:
-            nextTrace.steps.length > 0
-              ? `${languageLabels[language]} execution completed in ${nextTrace.executionTime}ms with ${nextTrace.steps.length} steps.`
+            nextPlaybackFrames.length > 0
+              ? nextTrace.traceSummary.status === "fallback"
+                ? `${languageLabels[language]} execution completed in ${nextTrace.executionTime}ms with ${nextPlaybackFrames.length} fallback frames. ${nextTrace.traceSummary.error || nextTrace.traceSummary.message}`
+                : `${languageLabels[language]} execution completed in ${nextTrace.executionTime}ms with ${nextPlaybackFrames.length} frames.`
               : `${languageLabels[language]} execution completed in ${nextTrace.executionTime}ms.`,
         });
       }
@@ -1067,6 +1314,14 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         });
         await refreshWorkspaceData();
       } catch (error) {
+        rendererLogger.error(
+          "Execution history persistence failed after a completed run.",
+          error,
+          {
+            snippetId: currentSnippetId,
+            language,
+          },
+        );
         setNotice({
           tone: "error",
           message:
@@ -1078,6 +1333,10 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to execute code.";
+      rendererLogger.error("Run request failed in the renderer.", error, {
+        language,
+        hasProgramInput: Boolean(programInput.trim()),
+      });
 
       setTrace({
         ...createEmptyTrace(language),
@@ -1130,6 +1389,10 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message: `${currentSnippetId ? "Updated" : "Saved"} "${savedSnippet.title}" to your dashboard.`,
       });
     } catch (error) {
+      rendererLogger.error("Cloud snippet save failed.", error, {
+        currentSnippetId: currentSnippetId ?? "",
+        language,
+      });
       setNotice({
         tone: "error",
         message: error instanceof Error ? error.message : "Unable to save code.",
@@ -1160,6 +1423,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message: `Loaded "${snippet.title}" into the editor.`,
       });
     } catch (error) {
+      rendererLogger.error("Snippet load failed.", error, {
+        snippetId,
+      });
       setNotice({
         tone: "error",
         message:
@@ -1184,6 +1450,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message: `Deleted "${snippetTitle}" from your library.`,
       });
     } catch (error) {
+      rendererLogger.error("Snippet delete failed.", error, {
+        snippetId,
+      });
       setNotice({
         tone: "error",
         message:
@@ -1217,6 +1486,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message: "Signed out of your Supabase session.",
       });
     } catch (error) {
+      rendererLogger.error("Logout failed.", error);
       setNotice({
         tone: "error",
         message: error instanceof Error ? error.message : "Unable to log out.",
@@ -1225,13 +1495,13 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   };
 
   const handleTimelineClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (trace.steps.length === 0) {
+    if (playbackFrames.length === 0) {
       return;
     }
 
     const rect = event.currentTarget.getBoundingClientRect();
     const ratio = (event.clientX - rect.left) / rect.width;
-    const nextIndex = Math.round(ratio * Math.max(trace.steps.length - 1, 0));
+    const nextIndex = Math.round(ratio * Math.max(playbackFrames.length - 1, 0));
     stopPlayback();
     setActiveWorkspaceTab("visualizer");
     setActiveRailSection("flow");
@@ -1251,7 +1521,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   };
 
   const handleNext = () => {
-    if (trace.steps.length === 0) {
+    if (playbackFrames.length === 0) {
       return;
     }
 
@@ -1259,7 +1529,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     setActiveWorkspaceTab("debugger");
     setActiveRailSection("variables");
     setCurrentStepIndex((current) =>
-      Math.min(trace.steps.length - 1, current + 1),
+      Math.min(playbackFrames.length - 1, current + 1),
     );
   };
 
@@ -1316,29 +1586,43 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const primaryStatus = activeStep?.description ?? LANGUAGE_PRESETS[language].headline;
   const secondaryStatus =
     activeStep?.explanation ??
-    (trace.steps.length === 0
+    (playbackFrames.length === 0
       ? LANGUAGE_PRESETS[language].description
       : "Use the timeline to move through the captured execution state.");
   const activeSidebarLabel =
     railItems.find((item) => item.section === activeRailSection)?.label ?? "Explorer";
+  const installedRuntimeCount = runtimeHealth.runtimeManager?.installedCount ?? 0;
+  const totalRuntimeCount = runtimeHealth.runtimeManager?.items.length ?? 5;
+  const missingRuntimeCount =
+    runtimeHealth.runtimeManager?.missingCount ??
+    Math.max(0, totalRuntimeCount - installedRuntimeCount);
   const runStateLabel = isExecuting
     ? "Execution running"
     : trace.status === "compile_error"
       ? "Compilation failed"
+      : trace.status === "runtime_missing"
+        ? "Required runtime missing"
       : trace.status === "runtime_error"
         ? "Runtime failed"
+        : trace.status === "memory_limit"
+          ? "Memory limit exceeded"
+          : trace.status === "trace_failure"
+            ? "Trace generation failed"
         : trace.status === "timed_out"
           ? "Execution timed out"
-          : trace.steps.length > 0 || trace.outputLines.length > 0
+          : playbackFrames.length > 0 || trace.outputLines.length > 0
             ? "Trace captured"
             : "Workbench idle";
   const runStateDetail = isExecuting
-    ? "Compiling and running inside the execution sandbox."
-    : trace.diagnostics[0]?.summary ??
+    ? "Compiling and running with locally installed tools."
+    : (trace.traceSummary.error ||
+      trace.diagnostics[0]?.summary) ??
       (trace.error
         ? trace.error
-        : trace.steps.length > 0
-          ? `${trace.steps.length} timeline steps ready for playback.`
+        : trace.traceSummary.message && trace.traceSummary.status !== "empty"
+          ? trace.traceSummary.message
+        : playbackFrames.length > 0
+          ? `${playbackFrames.length} timeline frames ready for playback.`
           : "Choose a language, edit code, and capture a fresh execution trace.");
   const featuredOutput = consoleOutput.slice(-5);
   const historyPreview = history.slice(0, 5);
@@ -1358,19 +1642,28 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     ? "info"
     : trace.status === "completed"
       ? "success"
-      : trace.status === "compile_error"
-        ? "warning"
-        : trace.status === "runtime_error" ||
-            trace.status === "timed_out" ||
-            trace.status === "internal_error"
-          ? "error"
-          : "neutral";
+    : trace.status === "compile_error"
+      ? "warning"
+      : trace.status === "runtime_missing" ||
+          trace.status === "runtime_error" ||
+          trace.status === "memory_limit" ||
+          trace.status === "trace_failure" ||
+          trace.status === "timed_out" ||
+          trace.status === "internal_error"
+        ? "error"
+        : "neutral";
   const footerExecutionLabel = isExecuting
     ? `Running ${languageLabels[language]}...`
     : trace.status === "compile_error"
       ? `${languageLabels[language]} Compile Error`
+      : trace.status === "runtime_missing"
+        ? "Runtime Missing"
       : trace.status === "runtime_error"
         ? `${languageLabels[language]} Runtime Error`
+        : trace.status === "memory_limit"
+          ? `${languageLabels[language]} Memory Limit`
+          : trace.status === "trace_failure"
+            ? `${languageLabels[language]} Trace Failure`
         : trace.status === "timed_out"
           ? `${languageLabels[language]} Timed Out`
           : trace.status === "internal_error"
@@ -1378,31 +1671,27 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
             : "Ready";
   const runtimeLabel =
     runtimeHealth.connection === "offline"
-      ? runtimeHealth.executionProvider === "docker"
-        ? "Docker Offline"
-        : "Runtime Offline"
+      ? "Runtime Offline"
       : runtimeHealth.connection === "checking"
-        ? "Checking Runtime"
-        : runtimeHealth.executorMode === "remote"
-          ? "Remote Runtime"
-          : runtimeHealth.executionProvider === "docker"
-            ? "Docker Runtime"
-            : runtimeHealth.executionProvider === "auto"
-              ? "Hybrid Runtime"
-              : "Local Runtime";
+        ? "Checking Runtimes"
+        : missingRuntimeCount > 0
+          ? `Missing ${missingRuntimeCount}/${totalRuntimeCount} Runtimes`
+          : `Local Runtime ${installedRuntimeCount}/${totalRuntimeCount}`;
   const runtimeTone: FooterTone =
     runtimeHealth.connection === "offline"
       ? "error"
       : runtimeHealth.connection === "checking"
         ? "info"
-        : "success";
+        : missingRuntimeCount > 0
+          ? "warning"
+          : "success";
   const runtimeIcon =
     runtimeHealth.connection === "offline"
       ? "cloud_off"
       : runtimeHealth.connection === "checking"
         ? "hourglass_top"
-        : runtimeHealth.executorMode === "remote"
-          ? "cloud_sync"
+        : missingRuntimeCount > 0
+          ? "warning"
           : "terminal";
   const footerExecutionTime = isExecuting
     ? `${Math.max(0, executionElapsedMs)}ms`
@@ -1901,6 +2190,19 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                     </div>
                   ) : null}
 
+                  {isDesktop ? (
+                    <RuntimeManagerPanel
+                      runtimeManager={runtimeHealth.runtimeManager}
+                      isLoading={
+                        runtimeHealth.connection === "checking" ||
+                        isRefreshingRuntimeManager
+                      }
+                      onRefresh={() => {
+                        void refreshRuntimeManager();
+                      }}
+                    />
+                  ) : null}
+
                   <div className="rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] p-4">
                     <div className="text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Signed in</div>
                     <div className="mt-2 text-sm text-[var(--cs-text)]">{user?.email ?? "Authenticated user"}</div>
@@ -1926,13 +2228,18 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                   trace={trace}
                   step={activeStep}
                   previousStep={previousStep}
-                  steps={trace.steps}
+                  steps={playbackFrames}
                   currentStepIndex={currentStepIndex}
                   activeLineCode={activeLineCode}
                   plainEnglishSummary={plainEnglishSummary}
                   consoleOutput={consoleOutput}
                   error={trace.error || undefined}
                   isExecuting={isExecuting}
+                  onDiagnosticSelect={(diagnostic) => {
+                    focusDiagnostic(diagnostic);
+                    setActiveWorkspaceTab("visualizer");
+                    setActiveRailSection("flow");
+                  }}
                   onStepSelect={(nextIndex) => {
                     stopPlayback();
                     setActiveWorkspaceTab("visualizer");
@@ -1946,7 +2253,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       </div>
 
       <PlaybackDock
-        stepCount={trace.steps.length}
+        stepCount={playbackFrames.length}
         currentStepIndex={currentStepIndex}
         activeLine={activeStep?.line}
         isPlaying={isPlaying}

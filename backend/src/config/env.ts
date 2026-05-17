@@ -13,6 +13,30 @@ const executorMode = (
   (process.env.REMOTE_EXECUTOR_URL ? "remote" : "local")
 ).toLowerCase();
 
+const parseLogLevel = (value: string | undefined) => {
+  switch (value?.trim().toLowerCase()) {
+    case "error":
+    case "warn":
+    case "info":
+    case "debug":
+      return value.trim().toLowerCase();
+    default:
+      return null;
+  }
+};
+
+const verboseLoggingEnabled =
+  process.env.CODESIGHT_VERBOSE_LOGS?.trim().toLowerCase() === "true";
+
+const defaultLogLevel =
+  parseLogLevel(process.env.CODESIGHT_LOG_LEVEL) ??
+  parseLogLevel(process.env.LOG_LEVEL) ??
+  (verboseLoggingEnabled
+    ? "debug"
+    : (process.env.NODE_ENV ?? "development") === "production"
+      ? "error"
+      : "warn");
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: (process.env.NODE_ENV ?? "development") === "production",
@@ -29,8 +53,8 @@ export const env = {
     60_000,
   ),
   executorSharedSecret: process.env.EXECUTOR_SHARED_SECRET?.trim() ?? "",
-  executionProvider: (process.env.EXECUTION_PROVIDER ?? "auto").toLowerCase(),
-  logLevel: process.env.LOG_LEVEL ?? "info",
+  executionProvider: "local" as const,
+  logLevel: defaultLogLevel,
 };
 
 export const requireRemoteExecutorConfig = () => {
