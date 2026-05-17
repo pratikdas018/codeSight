@@ -1821,7 +1821,14 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       </header>
 
       <div className="mx-auto max-w-[1900px] px-3 pb-48 pt-4 sm:px-4 lg:px-6">
-        <div className="grid gap-4 xl:grid-cols-[auto,minmax(0,1fr),clamp(22rem,26vw,29rem)]">
+        <div
+          className={clsx(
+            "grid gap-4",
+            playbackFrames.length > 0
+              ? "xl:grid-cols-[auto,minmax(0,1fr),clamp(25rem,31vw,36rem)]"
+              : "xl:grid-cols-[auto,minmax(0,1fr),clamp(22rem,26vw,29rem)]",
+          )}
+        >
           <aside
             className={clsx(
               "cs-panel cs-panel-strong flex h-fit flex-row gap-2 p-2 xl:min-h-[calc(100vh-11rem)] xl:flex-col xl:justify-between",

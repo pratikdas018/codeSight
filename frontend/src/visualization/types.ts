@@ -80,6 +80,7 @@ export interface HeapNode {
   label: string;
   kind: "array" | "object";
   rows: Array<{
+    id: string;
     key: string;
     value: string;
   }>;

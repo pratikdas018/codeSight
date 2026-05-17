@@ -208,7 +208,7 @@ const VariableStateList = memo(
       </div>
 
       <LayoutGroup>
-        <div className="mt-4 space-y-2.5">
+        <div className="mt-4 max-h-[18rem] space-y-2.5 overflow-y-auto pr-1">
           {variables.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
               Variables appear here as soon as the trace captures runtime state.
@@ -320,7 +320,7 @@ const StackFramesPanel = memo(
         </span>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 max-h-[18rem] space-y-3 overflow-y-auto pr-1">
         {frames.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
             Function frames show up here once the runtime enters a traced scope.
@@ -415,7 +415,7 @@ const MemoryPanel = memo(
         </p>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 max-h-[20rem] space-y-3 overflow-y-auto pr-1">
         {arrays.length === 0 && heapNodes.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
             Composite values like arrays and objects render here as soon as they appear.
@@ -501,7 +501,7 @@ const MemoryPanel = memo(
                 <div className="space-y-1.5">
                   {node.rows.map((row) => (
                     <div
-                      key={`${node.id}-${row.key}`}
+                      key={`${node.id}-${row.id}`}
                       className="grid grid-cols-[auto,1fr] gap-3 text-xs"
                     >
                       <span className="font-mono text-[var(--cs-text-subtle)]">{row.key}</span>
@@ -563,7 +563,7 @@ const FlowPanel = memo(
           </span>
         </div>
 
-        <div className="mt-4 space-y-2.5">
+        <div className="mt-4 max-h-[18rem] space-y-2.5 overflow-y-auto pr-1">
           {nearbySteps.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
               Run the program to generate a clickable execution path.
@@ -619,10 +619,12 @@ const RuntimePanel = memo(
     trace,
     isExecuting,
     onDiagnosticSelect,
+    compact = false,
   }: {
     trace: ExecutionTrace;
     isExecuting: boolean;
     onDiagnosticSelect: (diagnostic: ExecutionDiagnostic) => void;
+    compact?: boolean;
   }) => {
     const phases = [trace.phases.compile, trace.phases.run, trace.phases.trace].filter(
       (phase): phase is NonNullable<ExecutionTrace["phases"]["compile"]> =>
@@ -720,33 +722,37 @@ const RuntimePanel = memo(
             </p>
           </div>
 
-          <div className={clsx(innerPanelClass, "px-3 py-3")}>
-            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-              Limits
-            </div>
-            <div className="mt-2 text-sm text-[var(--cs-text)]">
-              run {trace.limits.runTimeoutMs}ms, compile {trace.limits.compileTimeoutMs}ms
-            </div>
-            <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
-              trace {trace.limits.traceTimeoutMs}ms, {trace.limits.memoryLimitMb}MB, {trace.limits.cpuLimit} CPU, {trace.limits.pidsLimit} pids
-            </div>
-          </div>
+          {compact ? null : (
+            <>
+              <div className={clsx(innerPanelClass, "px-3 py-3")}>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                  Limits
+                </div>
+                <div className="mt-2 text-sm text-[var(--cs-text)]">
+                  run {trace.limits.runTimeoutMs}ms, compile {trace.limits.compileTimeoutMs}ms
+                </div>
+                <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
+                  trace {trace.limits.traceTimeoutMs}ms, {trace.limits.memoryLimitMb}MB, {trace.limits.cpuLimit} CPU, {trace.limits.pidsLimit} pids
+                </div>
+              </div>
 
-          <div className={clsx(innerPanelClass, "px-3 py-3 sm:col-span-2")}>
-            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-              Program Input
-            </div>
-            <div className="mt-2 text-sm text-[var(--cs-text)]">
-              {trace.stdin.provided
-                ? `${trace.stdin.lineCount} line${trace.stdin.lineCount === 1 ? "" : "s"}, ${trace.stdin.charCount} chars`
-                : "No stdin provided"}
-            </div>
-            {trace.stdin.preview ? (
-              <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(15,20,15,0.95)] px-3 py-2 font-mono text-xs text-[var(--cs-text-muted)]">
-                {trace.stdin.preview}
-              </pre>
-            ) : null}
-          </div>
+              <div className={clsx(innerPanelClass, "px-3 py-3 sm:col-span-2")}>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                  Program Input
+                </div>
+                <div className="mt-2 text-sm text-[var(--cs-text)]">
+                  {trace.stdin.provided
+                    ? `${trace.stdin.lineCount} line${trace.stdin.lineCount === 1 ? "" : "s"}, ${trace.stdin.charCount} chars`
+                    : "No stdin provided"}
+                </div>
+                {trace.stdin.preview ? (
+                  <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(15,20,15,0.95)] px-3 py-2 font-mono text-xs text-[var(--cs-text-muted)]">
+                    {trace.stdin.preview}
+                  </pre>
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
 
         {trace.diagnostics.length > 0 ? (
@@ -811,210 +817,329 @@ const RuntimePanel = memo(
           </div>
         ) : null}
 
-        <div className="mt-4 space-y-3">
-          {phases.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
-              Run the program to inspect compilation and execution details.
-            </div>
-          ) : (
-            phases.map((phase) => (
-              <div
-                key={phase.phase}
-                className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] p-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="font-medium capitalize text-[var(--cs-text)]">
-                      {phase.phase} phase
-                    </div>
-                    <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-[var(--cs-text-subtle)]">
-                      {phase.durationMs}ms
-                      {typeof phase.exitCode === "number" ? `, exit ${phase.exitCode}` : ""}
-                    </div>
+        {compact ? (
+          <details className="mt-4 rounded-2xl border border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] px-3 py-3">
+            <summary className="cursor-pointer text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+              Execution details
+            </summary>
+            <div className="mt-3 space-y-4">
+              <div className="space-y-3">
+                {phases.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
+                    Run the program to inspect compilation and execution details.
                   </div>
-                  <span
+                ) : (
+                  phases.map((phase) => (
+                    <div
+                      key={phase.phase}
+                      className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(11,15,11,0.92)] p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="font-medium capitalize text-[var(--cs-text)]">
+                            {phase.phase} phase
+                          </div>
+                          <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-[var(--cs-text-subtle)]">
+                            {phase.durationMs}ms
+                            {typeof phase.exitCode === "number" ? `, exit ${phase.exitCode}` : ""}
+                          </div>
+                        </div>
+                        <span
+                          className={clsx(
+                            chipBaseClass,
+                            phaseTone[phase.status] ?? phaseTone.failed,
+                          )}
+                        >
+                          {phase.status.replace(/_/g, " ")}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">
+                        {phase.summary}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {trace.logs.system.length > 0 ? (
+                <div className="rounded-2xl border border-fuchsia-300/14 bg-fuchsia-300/8 px-3 py-3">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-fuchsia-100">
+                    System logs
+                  </div>
+                  <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-fuchsia-50">
+                    {trace.logs.system.join("\n")}
+                  </pre>
+                </div>
+              ) : null}
+
+              {trace.logs.entries.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                    Structured Runtime Logs
+                  </div>
+                  {trace.logs.entries.map((entry, index) => (
+                    <div
+                      key={`${entry.timestamp}-${entry.scope}-${index}`}
+                      className={clsx(
+                        "rounded-2xl border px-3 py-3",
+                        logTone[entry.level] ?? logTone.info,
+                      )}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs uppercase tracking-[0.16em]">
+                            {entry.scope}
+                          </div>
+                          <div className="mt-2 text-sm font-medium text-[inherit]">
+                            {entry.message}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.12em]">
+                          <span className="rounded-full border border-current/20 bg-black/10 px-2.5 py-1">
+                            {entry.level}
+                          </span>
+                          {entry.phase ? (
+                            <span className="rounded-full border border-current/20 bg-black/10 px-2.5 py-1">
+                              {entry.phase}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {(entry.command || entry.filePath || typeof entry.durationMs === "number") ? (
+                        <div className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3 font-mono text-xs leading-6 text-[inherit]">
+                          {entry.command ? <div>command: {entry.command}</div> : null}
+                          {entry.filePath ? <div>file: {entry.filePath}</div> : null}
+                          {typeof entry.durationMs === "number" ? (
+                            <div>duration: {entry.durationMs}ms</div>
+                          ) : null}
+                          {typeof entry.exitCode === "number" ? (
+                            <div>exit: {entry.exitCode}</div>
+                          ) : null}
+                          {entry.signal ? <div>signal: {entry.signal}</div> : null}
+                        </div>
+                      ) : null}
+
+                      {entry.details ? (
+                        <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl border border-current/10 bg-black/10 px-3 py-3 font-mono text-xs leading-6 text-[inherit]">
+                          {formatLogDetails(entry.details)}
+                        </pre>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </details>
+        ) : (
+          <>
+            <div className="mt-4 space-y-3">
+              {phases.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
+                  Run the program to inspect compilation and execution details.
+                </div>
+              ) : (
+                phases.map((phase) => (
+                  <div
+                    key={phase.phase}
+                    className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="font-medium capitalize text-[var(--cs-text)]">
+                          {phase.phase} phase
+                        </div>
+                        <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-[var(--cs-text-subtle)]">
+                          {phase.durationMs}ms
+                          {typeof phase.exitCode === "number" ? `, exit ${phase.exitCode}` : ""}
+                        </div>
+                      </div>
+                      <span
+                        className={clsx(
+                          chipBaseClass,
+                          phaseTone[phase.status] ?? phaseTone.failed,
+                        )}
+                      >
+                        {phase.status.replace(/_/g, " ")}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">
+                      {phase.summary}
+                    </p>
+
+                    <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
+                      <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                        Command
+                      </div>
+                      <div className="mt-2 break-all font-mono text-xs text-[var(--cs-text-muted)]">
+                        {phase.command}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                          Exit
+                        </div>
+                        <div className="mt-2 text-sm text-[var(--cs-text)]">
+                          {typeof phase.exitCode === "number" ? `code ${phase.exitCode}` : "no exit code"}
+                        </div>
+                        {phase.signal ? (
+                          <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
+                            signal {phase.signal}
+                          </div>
+                        ) : null}
+                        {phase.oomKilled ? (
+                          <div className="mt-1 text-xs text-orange-200">
+                            process reported an out-of-memory termination
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                          Capture
+                        </div>
+                        <div className="mt-2 text-sm text-[var(--cs-text)]">
+                          {phase.outputLimitExceeded ? "output truncated" : "full output captured"}
+                        </div>
+                        <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
+                          stdout and stderr are preserved separately for this phase.
+                        </div>
+                      </div>
+                    </div>
+
+                    {phase.stdout ? (
+                      <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                          Stdout
+                        </div>
+                        <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-[var(--cs-text-muted)]">
+                          {phase.stdout}
+                        </pre>
+                      </div>
+                    ) : null}
+
+                    {phase.stderr ? (
+                      <div className="mt-3 rounded-xl border border-rose-300/14 bg-rose-300/8 px-3 py-2.5">
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-rose-100">
+                          Stderr
+                        </div>
+                        <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-rose-50">
+                          {phase.stderr}
+                        </pre>
+                      </div>
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {trace.logs.system.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-fuchsia-300/14 bg-fuchsia-300/8 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-fuchsia-100">
+                  System logs
+                </div>
+                <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-fuchsia-50">
+                  {trace.logs.system.join("\n")}
+                </pre>
+              </div>
+            ) : null}
+
+            {trace.logs.entries.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                  Structured Runtime Logs
+                </div>
+                {trace.logs.entries.map((entry, index) => (
+                  <div
+                    key={`${entry.timestamp}-${entry.scope}-${index}`}
                     className={clsx(
-                      chipBaseClass,
-                      phaseTone[phase.status] ?? phaseTone.failed,
+                      "rounded-2xl border px-3 py-3",
+                      logTone[entry.level] ?? logTone.info,
                     )}
                   >
-                    {phase.status.replace(/_/g, " ")}
-                  </span>
-                </div>
-
-                <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">
-                  {phase.summary}
-                </p>
-
-                <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-                    Command
-                  </div>
-                  <div className="mt-2 break-all font-mono text-xs text-[var(--cs-text-muted)]">
-                    {phase.command}
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-                      Exit
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.16em]">
+                          {entry.scope}
+                        </div>
+                        <div className="mt-2 text-sm font-medium text-[inherit]">
+                          {entry.message}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.12em]">
+                        <span className="rounded-full border border-current/20 bg-black/10 px-2.5 py-1">
+                          {entry.level}
+                        </span>
+                        {entry.phase ? (
+                          <span className="rounded-full border border-current/20 bg-black/10 px-2.5 py-1">
+                            {entry.phase}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="mt-2 text-sm text-[var(--cs-text)]">
-                      {typeof phase.exitCode === "number" ? `code ${phase.exitCode}` : "no exit code"}
-                    </div>
-                    {phase.signal ? (
-                      <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
-                        signal {phase.signal}
+
+                    {(entry.command || entry.filePath || typeof entry.durationMs === "number") ? (
+                      <div className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3 font-mono text-xs leading-6 text-[inherit]">
+                        {entry.command ? <div>command: {entry.command}</div> : null}
+                        {entry.filePath ? <div>file: {entry.filePath}</div> : null}
+                        {typeof entry.durationMs === "number" ? (
+                          <div>duration: {entry.durationMs}ms</div>
+                        ) : null}
+                        {typeof entry.exitCode === "number" ? (
+                          <div>exit: {entry.exitCode}</div>
+                        ) : null}
+                        {entry.signal ? <div>signal: {entry.signal}</div> : null}
                       </div>
                     ) : null}
-                    {phase.oomKilled ? (
-                      <div className="mt-1 text-xs text-orange-200">
-                        process reported an out-of-memory termination
-                      </div>
+
+                    {entry.details ? (
+                      <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl border border-current/10 bg-black/10 px-3 py-3 font-mono text-xs leading-6 text-[inherit]">
+                        {formatLogDetails(entry.details)}
+                      </pre>
+                    ) : null}
+
+                    {entry.stdout ? (
+                      <details className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3">
+                        <summary className="cursor-pointer text-xs uppercase tracking-[0.16em]">
+                          Stdout
+                        </summary>
+                        <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[inherit]">
+                          {entry.stdout}
+                        </pre>
+                      </details>
+                    ) : null}
+
+                    {entry.stderr ? (
+                      <details className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3">
+                        <summary className="cursor-pointer text-xs uppercase tracking-[0.16em]">
+                          Stderr
+                        </summary>
+                        <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[inherit]">
+                          {entry.stderr}
+                        </pre>
+                      </details>
+                    ) : null}
+
+                    {entry.stack ? (
+                      <details className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3">
+                        <summary className="cursor-pointer text-xs uppercase tracking-[0.16em]">
+                          Stack
+                        </summary>
+                        <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[inherit]">
+                          {entry.stack}
+                        </pre>
+                      </details>
                     ) : null}
                   </div>
-
-                  <div className="rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-                      Capture
-                    </div>
-                    <div className="mt-2 text-sm text-[var(--cs-text)]">
-                      {phase.outputLimitExceeded ? "output truncated" : "full output captured"}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--cs-text-muted)]">
-                      stdout and stderr are preserved separately for this phase.
-                    </div>
-                  </div>
-                </div>
-
-                {phase.stdout ? (
-                  <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-                      Stdout
-                    </div>
-                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-[var(--cs-text-muted)]">
-                      {phase.stdout}
-                    </pre>
-                  </div>
-                ) : null}
-
-                {phase.stderr ? (
-                  <div className="mt-3 rounded-xl border border-rose-300/14 bg-rose-300/8 px-3 py-2.5">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-rose-100">
-                      Stderr
-                    </div>
-                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-rose-50">
-                      {phase.stderr}
-                    </pre>
-                  </div>
-                ) : null}
+                ))}
               </div>
-            ))
-          )}
-        </div>
-
-        {trace.logs.system.length > 0 ? (
-          <div className="mt-4 rounded-2xl border border-fuchsia-300/14 bg-fuchsia-300/8 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-fuchsia-100">
-              System logs
-            </div>
-            <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-fuchsia-50">
-              {trace.logs.system.join("\n")}
-            </pre>
-          </div>
-        ) : null}
-
-        {trace.logs.entries.length > 0 ? (
-          <div className="mt-4 space-y-3">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-              Structured Runtime Logs
-            </div>
-            {trace.logs.entries.map((entry, index) => (
-              <div
-                key={`${entry.timestamp}-${entry.scope}-${index}`}
-                className={clsx(
-                  "rounded-2xl border px-3 py-3",
-                  logTone[entry.level] ?? logTone.info,
-                )}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.16em]">
-                      {entry.scope}
-                    </div>
-                    <div className="mt-2 text-sm font-medium text-[inherit]">
-                      {entry.message}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.12em]">
-                    <span className="rounded-full border border-current/20 bg-black/10 px-2.5 py-1">
-                      {entry.level}
-                    </span>
-                    {entry.phase ? (
-                      <span className="rounded-full border border-current/20 bg-black/10 px-2.5 py-1">
-                        {entry.phase}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                {(entry.command || entry.filePath || typeof entry.durationMs === "number") ? (
-                  <div className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3 font-mono text-xs leading-6 text-[inherit]">
-                    {entry.command ? <div>command: {entry.command}</div> : null}
-                    {entry.filePath ? <div>file: {entry.filePath}</div> : null}
-                    {typeof entry.durationMs === "number" ? (
-                      <div>duration: {entry.durationMs}ms</div>
-                    ) : null}
-                    {typeof entry.exitCode === "number" ? (
-                      <div>exit: {entry.exitCode}</div>
-                    ) : null}
-                    {entry.signal ? <div>signal: {entry.signal}</div> : null}
-                  </div>
-                ) : null}
-
-                {entry.details ? (
-                  <pre className="mt-3 whitespace-pre-wrap break-words rounded-xl border border-current/10 bg-black/10 px-3 py-3 font-mono text-xs leading-6 text-[inherit]">
-                    {formatLogDetails(entry.details)}
-                  </pre>
-                ) : null}
-
-                {entry.stdout ? (
-                  <details className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3">
-                    <summary className="cursor-pointer text-xs uppercase tracking-[0.16em]">
-                      Stdout
-                    </summary>
-                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[inherit]">
-                      {entry.stdout}
-                    </pre>
-                  </details>
-                ) : null}
-
-                {entry.stderr ? (
-                  <details className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3">
-                    <summary className="cursor-pointer text-xs uppercase tracking-[0.16em]">
-                      Stderr
-                    </summary>
-                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[inherit]">
-                      {entry.stderr}
-                    </pre>
-                  </details>
-                ) : null}
-
-                {entry.stack ? (
-                  <details className="mt-3 rounded-xl border border-current/10 bg-black/10 px-3 py-3">
-                    <summary className="cursor-pointer text-xs uppercase tracking-[0.16em]">
-                      Stack
-                    </summary>
-                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[inherit]">
-                      {entry.stack}
-                    </pre>
-                  </details>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
+            ) : null}
+          </>
+        )}
       </section>
     );
   },
@@ -1046,6 +1171,7 @@ export const ExecutionVisualizer = memo(
     const changedVariables = model.variables.filter(
       (variable) => variable.change !== "unchanged",
     );
+    const shouldPrioritizeVisualization = steps.length > 0;
     const latestConsole = consoleOutput.slice(-3);
     const renderedSections: Record<VisualizerSection, ReactElement> = {
       variables: (
@@ -1105,6 +1231,7 @@ export const ExecutionVisualizer = memo(
             trace={trace}
             isExecuting={isExecuting}
             onDiagnosticSelect={onDiagnosticSelect}
+            compact={shouldPrioritizeVisualization}
           />
 
           <motion.section layout className={clsx(surfacePanelClass, "mt-4")}>
@@ -1153,7 +1280,7 @@ export const ExecutionVisualizer = memo(
             ) : null}
           </motion.section>
 
-          <div className="mt-4 xl:hidden">
+          <div className="mt-4 lg:hidden">
             <div className="mb-3 flex flex-wrap gap-2">
               {sectionOrder.map((section) => (
                 <button
@@ -1175,7 +1302,7 @@ export const ExecutionVisualizer = memo(
             {renderedSections[mobileSection]}
           </div>
 
-          <div className="mt-4 hidden space-y-4 xl:block">
+          <div className="mt-4 hidden space-y-4 lg:block">
             {sectionOrder.map((section) => (
               <div key={section.key}>{renderedSections[section.key]}</div>
             ))}

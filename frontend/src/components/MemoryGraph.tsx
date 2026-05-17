@@ -235,7 +235,7 @@ export const MemoryGraph = ({
                   {node.label}
                 </text>
                 {node.rows.map((row, rowIndex) => (
-                  <g key={`${node.id}-${row.key}`}>
+                  <g key={`${node.id}-${row.id}`}>
                     <text
                       x="440"
                       y={y - boxHeight / 2 + 54 + rowIndex * 20}

@@ -249,6 +249,7 @@ const buildHeapNode = (variable: VisualVariable): HeapNode | null => {
       label: `${variable.name}[]`,
       kind: "array",
       rows: variable.parsedValue.items.map((item, index) => ({
+        id: `index:${index}`,
         key: `[${index}]`,
         value: item.display,
       })),
@@ -257,11 +258,16 @@ const buildHeapNode = (variable: VisualVariable): HeapNode | null => {
   }
 
   if (variable.parsedValue.kind === "object") {
+    const rowIds = buildOccurrenceId(
+      variable.parsedValue.entries.map((entry) => entry.key),
+    );
+
     return {
       id: `heap:${variable.id}`,
       label: `${variable.name}{}`,
       kind: "object",
-      rows: variable.parsedValue.entries.map((entry) => ({
+      rows: variable.parsedValue.entries.map((entry, index) => ({
+        id: rowIds[index],
         key: entry.key,
         value: entry.value.display,
       })),
