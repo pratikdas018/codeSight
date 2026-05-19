@@ -1,11 +1,14 @@
+import { motion } from "framer-motion";
 import clsx from "clsx";
 
 interface PlaybackDockProps {
   stepCount: number;
   currentStepIndex: number;
   activeLine?: number;
+  currentFunctionName?: string;
   isPlaying: boolean;
   playbackRate: number;
+  stepSummary: string;
   onPlaybackRateChange: (value: number) => void;
   onStepScrub: (nextIndex: number) => void;
   onPrevious: () => void;
@@ -18,8 +21,10 @@ export const PlaybackDock = ({
   stepCount,
   currentStepIndex,
   activeLine,
+  currentFunctionName,
   isPlaying,
   playbackRate,
+  stepSummary,
   onPlaybackRateChange,
   onStepScrub,
   onPrevious,
@@ -28,6 +33,15 @@ export const PlaybackDock = ({
   onReset,
 }: PlaybackDockProps) => {
   const hasTrace = stepCount > 0;
+  const timelineProgress =
+    hasTrace && stepCount > 1
+      ? (currentStepIndex / (stepCount - 1)) * 100
+      : hasTrace
+        ? 100
+        : 0;
+  const dockSummary = hasTrace
+    ? stepSummary
+    : "Run your program to capture a synchronized execution timeline.";
 
   return (
     <div className="fixed inset-x-0 bottom-12 z-50 px-3 sm:px-4 lg:px-6">
@@ -41,22 +55,45 @@ export const PlaybackDock = ({
               <span className="rounded-full border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-1.5 font-mono text-[11px] text-[#84967e]">
                 {activeLine ? `Line ${activeLine}` : "Waiting"}
               </span>
+              <span className="rounded-full border border-[rgba(114,255,112,0.14)] bg-[rgba(114,255,112,0.07)] px-3 py-1.5 font-mono text-[11px] text-[#72ff70]">
+                {currentFunctionName ?? "global scope"}
+              </span>
             </div>
 
             <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={Math.max(stepCount - 1, 0)}
-                step={1}
-                value={hasTrace ? currentStepIndex : 0}
-                onChange={(event) => onStepScrub(Number(event.target.value))}
-                disabled={!hasTrace}
-                className={clsx(
-                  "h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#00ff41]",
-                  hasTrace ? "opacity-100" : "cursor-not-allowed opacity-40",
-                )}
-              />
+              <div className="relative flex-1">
+                <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full border border-[#1f1f1f] bg-[#070907]" />
+                <motion.div
+                  className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,rgba(0,255,65,0.18),rgba(114,255,112,0.42))] shadow-[0_0_22px_rgba(0,255,65,0.18)]"
+                  initial={false}
+                  animate={{
+                    width: `${timelineProgress}%`,
+                  }}
+                  transition={{ duration: isPlaying ? 0.26 : 0.16, ease: "easeOut" }}
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(stepCount - 1, 0)}
+                  step={1}
+                  value={hasTrace ? currentStepIndex : 0}
+                  onChange={(event) => onStepScrub(Number(event.target.value))}
+                  disabled={!hasTrace}
+                  className={clsx(
+                    "relative z-10 h-2.5 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#00ff41]",
+                    hasTrace ? "opacity-100" : "cursor-not-allowed opacity-40",
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="min-w-0 flex-1 truncate text-sm text-[#b9ccb2]">
+                {dockSummary}
+              </p>
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#84967e]">
+                {hasTrace ? `${timelineProgress.toFixed(0)}% through trace` : "Awaiting playback"}
+              </span>
             </div>
           </div>
 

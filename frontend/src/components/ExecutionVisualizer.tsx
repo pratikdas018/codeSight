@@ -179,6 +179,24 @@ const formatLogDetails = (details: Record<string, string | number | boolean | nu
     .map(([key, value]) => `${key}: ${String(value)}`)
     .join("\n");
 
+const getFunctionName = (step: ExecutionStep | null) => {
+  const activeCall = [...(step?.functionCalls ?? [])]
+    .sort((left, right) => right.depth - left.depth)
+    .find((call) => call.event === "active" || call.event === "enter");
+
+  if (activeCall?.name) {
+    return activeCall.name;
+  }
+
+  const stackFrameName = step?.stack?.[0]?.name;
+
+  if (stackFrameName && stackFrameName !== "global") {
+    return stackFrameName;
+  }
+
+  return "global scope";
+};
+
 const VariableStateList = memo(
   ({
     sectionTitle,
@@ -426,6 +444,19 @@ const MemoryPanel = memo(
           <motion.div
             key={array.id}
             layout
+            initial={false}
+            animate={
+              array.items.some((item) => item.changed)
+                ? {
+                    boxShadow: [
+                      "0 0 0 rgba(114,255,112,0)",
+                      "0 16px 34px rgba(114,255,112,0.1)",
+                      "0 0 0 rgba(114,255,112,0)",
+                    ],
+                  }
+                : {}
+            }
+            transition={{ duration: 0.42, ease: "easeOut" }}
             className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] p-3"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -450,6 +481,9 @@ const MemoryPanel = memo(
                     {pointer.name}:{pointer.index}
                   </span>
                 ))}
+                <span className="rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--cs-text-muted)]">
+                  {array.items.filter((item) => item.changed).length} updated
+                </span>
               </div>
             </div>
 
@@ -488,12 +522,30 @@ const MemoryPanel = memo(
             <motion.div
               key={node.id}
               layout
+              initial={false}
+              animate={
+                node.emphasized
+                  ? {
+                      boxShadow: [
+                        "0 0 0 rgba(114,255,112,0)",
+                        "0 18px 36px rgba(114,255,112,0.1)",
+                        "0 0 0 rgba(114,255,112,0)",
+                      ],
+                    }
+                  : {}
+              }
+              transition={{ duration: 0.46, ease: "easeOut" }}
               className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] p-3"
             >
               <div className="flex items-center gap-3 text-xs uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
                 <span className="font-mono text-[var(--cs-primary-bright)]">{sourceName}</span>
                 <span className="h-px flex-1 bg-gradient-to-r from-[rgba(114,255,112,0.32)] to-transparent" />
                 <span>{node.kind}</span>
+                {node.emphasized ? (
+                  <span className="rounded-full border border-[rgba(114,255,112,0.18)] bg-[rgba(114,255,112,0.1)] px-2 py-0.5 text-[10px] text-[var(--cs-primary-bright)]">
+                    live change
+                  </span>
+                ) : null}
               </div>
 
               <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5">
@@ -1173,6 +1225,7 @@ export const ExecutionVisualizer = memo(
     );
     const shouldPrioritizeVisualization = steps.length > 0;
     const latestConsole = consoleOutput.slice(-3);
+    const activeFunctionName = useMemo(() => getFunctionName(step), [step]);
     const renderedSections: Record<VisualizerSection, ReactElement> = {
       variables: (
         <VariableStateList
@@ -1222,6 +1275,14 @@ export const ExecutionVisualizer = memo(
               )}
             >
               {model.stackFrames.length} frame{model.stackFrames.length === 1 ? "" : "s"}
+            </span>
+            <span
+              className={clsx(
+                chipBaseClass,
+                "border-[rgba(114,255,112,0.16)] bg-[rgba(114,255,112,0.08)] text-[var(--cs-primary-bright)]",
+              )}
+            >
+              {activeFunctionName}
             </span>
           </div>
         </div>

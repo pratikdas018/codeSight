@@ -14,12 +14,18 @@ import type * as Monaco from "monaco-editor";
 import clsx from "clsx";
 import { CodeSightLogo } from "../components/CodeSightLogo";
 import { ExecutionVisualizer } from "../components/ExecutionVisualizer";
+import { FeedbackPanel } from "../components/FeedbackPanel";
 import { FooterBar } from "../components/FooterBar";
+import { HelpPanel } from "../components/HelpPanel";
 import { PlaybackDock } from "../components/PlaybackDock";
 import { RuntimeManagerPanel } from "../components/RuntimeManagerPanel";
 import { ToastViewport } from "../components/ToastViewport";
 import { useAuth } from "../hooks/useAuth";
 import { usePlayback } from "../hooks/usePlayback";
+import {
+  saveFeedbackRecord,
+  type FeedbackCategory,
+} from "../services/feedbackService";
 import { createExecutionHistory, listExecutionHistory } from "../services/historyService";
 import {
   createSnippet,
@@ -34,7 +40,8 @@ import {
   fetchRuntimeManager,
   type RuntimeManagerSnapshot,
 } from "../utils/api";
-import type { ExecutionTrace } from "../engine/types";
+import type { ExecutionStep, ExecutionTrace } from "../engine/types";
+import { normalizeAuthEmail, validateEmailAddress } from "../utils/auth";
 import type {
   CodeSnippet,
   ExecutionHistoryRecord,
@@ -408,6 +415,37 @@ const buildPlainEnglishSummary = (lineText: string, language: SupportedLanguage)
   return "This line is part of the program flow. Use the highlighted variables and timeline to see its effect.";
 };
 
+const isTypingTarget = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  Boolean(
+    target.closest(
+      'input, textarea, select, [contenteditable="true"], .monaco-editor textarea',
+    ),
+  );
+
+const getActiveFunctionName = (step: ExecutionStep | null) => {
+  const activeCall = [...(step?.functionCalls ?? [])]
+    .sort((left, right) => right.depth - left.depth)
+    .find((call) => call.event === "active" || call.event === "enter");
+
+  if (activeCall?.name) {
+    return activeCall.name;
+  }
+
+  const frameName = step?.stack?.[0]?.name;
+
+  if (frameName && frameName !== "global") {
+    return frameName;
+  }
+
+  return "global scope";
+};
+
+const getStepLineNumber = (step: ExecutionStep | null) => {
+  const candidate = step?.line ?? step?.lineNumber ?? 0;
+  return candidate > 0 ? candidate : null;
+};
+
 interface HomePageProps {
   onGlobalNotice?: (notice: Notice) => void;
 }
@@ -425,6 +463,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showProgramInput, setShowProgramInput] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") {
       return "noctis";
@@ -463,6 +504,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const decorationsRef =
     useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
+  const revealFrameRef = useRef<number | null>(null);
   const executionStartedAtRef = useRef<number | null>(null);
   const explanationNodeRef = useRef<HTMLDivElement | null>(null);
   const explanationPositionRef = useRef<Monaco.Position | null>(null);
@@ -587,6 +629,8 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const activeStep = playbackFrames[currentStepIndex] ?? null;
   const previousStep =
     currentStepIndex > 0 ? playbackFrames[currentStepIndex - 1] ?? null : null;
+  const activeLineNumber = getStepLineNumber(activeStep);
+  const currentFunctionName = getActiveFunctionName(activeStep);
   const consoleOutput =
     activeStep?.stdout ??
     activeStep?.output ??
@@ -639,10 +683,16 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const codeLines = useMemo(() => deferredCode.split(/\r?\n/), [deferredCode]);
   const activeLineCode =
     activeStep?.codeLine?.trim() ||
-    (activeStep?.line && activeStep.line > 0
-      ? codeLines[activeStep.line - 1]?.trim() ?? ""
+    (activeLineNumber
+      ? codeLines[activeLineNumber - 1]?.trim() ?? ""
       : "");
   const plainEnglishSummary = buildPlainEnglishSummary(activeLineCode, language);
+  const playbackSummary =
+    activeStep?.explanation ??
+    activeStep?.description ??
+    (playbackFrames.length > 0
+      ? "Step through the timeline to keep the editor and runtime panels in sync."
+      : "Run your program to generate a guided execution story.");
   const changedVariableSummary =
     changedVariables.length > 0
       ? changedVariables
@@ -1051,9 +1101,50 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       const column = Math.max(1, diagnostic.column ?? 1);
       editor.focus();
       editor.setPosition({ lineNumber: diagnostic.line, column });
-      editor.revealPositionInCenter({ lineNumber: diagnostic.line, column });
+      editor.revealPositionInCenter(
+        { lineNumber: diagnostic.line, column },
+        monaco.editor.ScrollType.Smooth,
+      );
     },
   );
+
+  const syncEditorToLine = useEffectEvent((lineNumber: number, column = 1) => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+
+    if (!editor || !monaco || lineNumber < 1) {
+      return;
+    }
+
+    if (typeof revealFrameRef.current === "number") {
+      window.cancelAnimationFrame(revealFrameRef.current);
+    }
+
+    revealFrameRef.current = window.requestAnimationFrame(() => {
+      const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight);
+      const editorHeight = editor.getLayoutInfo().height;
+      const targetTop = Math.max(
+        0,
+        editor.getTopForLineNumber(lineNumber) -
+          editorHeight / 2 +
+          lineHeight / 2,
+      );
+
+      editor.setScrollTop(targetTop, monaco.editor.ScrollType.Smooth);
+      editor.revealPositionInCenter(
+        {
+          lineNumber,
+          column: Math.max(1, column),
+        },
+        monaco.editor.ScrollType.Smooth,
+      );
+      editor.setPosition({
+        lineNumber,
+        column: Math.max(1, column),
+      });
+      revealFrameRef.current = null;
+    });
+  });
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -1137,14 +1228,14 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       return;
     }
 
-    if (!activeStep?.line) {
+    if (!activeLineNumber) {
       decorationsRef.current.set([]);
       return;
     }
 
     decorationsRef.current.set([
       {
-        range: new monaco.Range(activeStep.line, 1, activeStep.line, 1),
+        range: new monaco.Range(activeLineNumber, 1, activeLineNumber, 1),
         options: {
           isWholeLine: true,
           className: "current-execution-line",
@@ -1152,8 +1243,8 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         },
       },
     ]);
-    editor.revealLineInCenter(activeStep.line);
-  }, [activeStep?.line]);
+    syncEditorToLine(activeLineNumber);
+  }, [activeLineNumber, currentStepIndex, syncEditorToLine]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -1165,7 +1256,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       return;
     }
 
-    if (!activeStep?.line || !activeStep.explanation) {
+    if (!activeLineNumber || !activeStep.explanation) {
       explanationNode.style.display = "none";
       explanationPositionRef.current = null;
       editor.layoutContentWidget(explanationWidget);
@@ -1180,19 +1271,24 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
 
     const titleNode = document.createElement("p");
     titleNode.className = "codesight-explanation-title";
-    titleNode.textContent = `Line ${activeStep.line}`;
+    titleNode.textContent = `Line ${activeLineNumber}`;
 
     const bodyNode = document.createElement("p");
     bodyNode.className = "codesight-explanation-body";
     bodyNode.textContent = activeStep.explanation;
 
     explanationNode.replaceChildren(titleNode, bodyNode);
-    explanationPositionRef.current = new monaco.Position(activeStep.line, 1);
+    explanationPositionRef.current = new monaco.Position(activeLineNumber, 1);
     editor.layoutContentWidget(explanationWidget);
-  }, [activeStep?.explanation, activeStep?.line, focusMode]);
+    syncEditorToLine(activeLineNumber);
+  }, [activeLineNumber, activeStep?.explanation, currentStepIndex, focusMode, syncEditorToLine]);
 
   useEffect(
     () => () => {
+      if (typeof revealFrameRef.current === "number") {
+        window.cancelAnimationFrame(revealFrameRef.current);
+      }
+
       if (editorRef.current && explanationWidgetRef.current) {
         editorRef.current.removeContentWidget(explanationWidgetRef.current);
       }
@@ -1502,6 +1598,8 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const ratio = (event.clientX - rect.left) / rect.width;
     const nextIndex = Math.round(ratio * Math.max(playbackFrames.length - 1, 0));
+    setIsHelpOpen(false);
+    setIsFeedbackOpen(false);
     stopPlayback();
     setActiveWorkspaceTab("visualizer");
     setActiveRailSection("flow");
@@ -1509,15 +1607,47 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   };
 
   const scrollToSection = (section: SectionKey, tab: WorkspaceTab) => {
+    setIsHelpOpen(false);
+    setIsFeedbackOpen(false);
     setActiveWorkspaceTab(tab);
     setActiveRailSection(section);
   };
 
-  const handlePrevious = () => {
+  const openHelpPanel = () => {
+    setIsFeedbackOpen(false);
+    setIsHelpOpen(true);
+  };
+
+  const openFeedbackPanel = () => {
+    setIsHelpOpen(false);
+    setIsFeedbackOpen(true);
+  };
+
+  const closeWorkspacePanels = () => {
+    setIsHelpOpen(false);
+    setIsFeedbackOpen(false);
+  };
+
+  const jumpToPlaybackIndex = (
+    nextIndex: number,
+    tab: WorkspaceTab = "visualizer",
+    section: SectionKey = "flow",
+  ) => {
+    closeWorkspacePanels();
     stopPlayback();
-    setActiveWorkspaceTab("debugger");
-    setActiveRailSection("variables");
-    setCurrentStepIndex((current) => Math.max(0, current - 1));
+    setActiveWorkspaceTab(tab);
+    setActiveRailSection(section);
+    setCurrentStepIndex(
+      Math.max(0, Math.min(nextIndex, Math.max(playbackFrames.length - 1, 0))),
+    );
+  };
+
+  const handlePrevious = () => {
+    if (playbackFrames.length === 0) {
+      return;
+    }
+
+    jumpToPlaybackIndex(currentStepIndex - 1, "debugger", "variables");
   };
 
   const handleNext = () => {
@@ -1525,19 +1655,31 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       return;
     }
 
-    stopPlayback();
-    setActiveWorkspaceTab("debugger");
-    setActiveRailSection("variables");
-    setCurrentStepIndex((current) =>
-      Math.min(playbackFrames.length - 1, current + 1),
-    );
+    jumpToPlaybackIndex(currentStepIndex + 1, "debugger", "variables");
   };
 
   const handleReset = () => {
+    closeWorkspacePanels();
     stopPlayback();
     setActiveWorkspaceTab("explorer");
     setActiveRailSection("guide");
     setCurrentStepIndex(0);
+  };
+
+  const handleTogglePlayback = () => {
+    if (playbackFrames.length === 0) {
+      return;
+    }
+
+    closeWorkspacePanels();
+    setActiveWorkspaceTab("visualizer");
+    setActiveRailSection("flow");
+
+    if (!isPlaying && currentStepIndex >= playbackFrames.length - 1) {
+      setCurrentStepIndex(0);
+    }
+
+    togglePlayback();
   };
 
   const loadStarterExample = () => {
@@ -1582,6 +1724,138 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     anchor.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleFeedbackSubmit = async ({
+    category,
+    email,
+    message,
+  }: {
+    category: FeedbackCategory;
+    email: string;
+    message: string;
+  }) => {
+    const normalizedEmail = normalizeAuthEmail(email);
+    const emailError = validateEmailAddress(normalizedEmail);
+
+    if (emailError) {
+      setNotice({
+        tone: "error",
+        message: emailError,
+      });
+      return;
+    }
+
+    if (!message.trim()) {
+      setNotice({
+        tone: "error",
+        message: "Add a few details so the feedback is actionable.",
+      });
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+
+    try {
+      saveFeedbackRecord({
+        category,
+        email: normalizedEmail,
+        message: message.trim(),
+        context: {
+          appVersion: isDesktop
+            ? window.electronAPI?.env.version ?? "1.0.0"
+            : "web-preview",
+          currentLine: activeLineNumber,
+          environment: isDesktop ? "desktop" : "web",
+          language,
+          stepCount: playbackFrames.length,
+          traceStatus: trace.status,
+          userId: user?.id ?? null,
+        },
+      });
+      setIsFeedbackOpen(false);
+      setNotice({
+        tone: "success",
+        message:
+          "Feedback saved locally. Thanks for helping improve CodeSight.",
+      });
+    } catch (error) {
+      rendererLogger.error("Feedback persistence failed.", error, {
+        category,
+        language,
+      });
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to save feedback locally.",
+      });
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && (isHelpOpen || isFeedbackOpen)) {
+        event.preventDefault();
+        closeWorkspacePanels();
+        return;
+      }
+
+      if (isHelpOpen || isFeedbackOpen) {
+        return;
+      }
+
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "s"
+      ) {
+        event.preventDefault();
+        if (isDesktop) {
+          void saveDesktopFile();
+        } else {
+          void saveCode();
+        }
+        return;
+      }
+
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        handleTogglePlayback();
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        handleNext();
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        handlePrevious();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    handleNext,
+    handlePrevious,
+    handleTogglePlayback,
+    isDesktop,
+    isFeedbackOpen,
+    isHelpOpen,
+    saveCode,
+    saveDesktopFile,
+  ]);
 
   const primaryStatus = activeStep?.description ?? LANGUAGE_PRESETS[language].headline;
   const secondaryStatus =
@@ -1697,7 +1971,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     ? `${Math.max(0, executionElapsedMs)}ms`
     : formatDuration(trace.executionTime);
   const footerMemoryUsage = formatMemoryUsage(trace.metrics.peakMemoryKb);
-  const footerCurrentLine = activeStep?.line ? `Line ${activeStep.line}` : "Line --";
+  const footerCurrentLine = activeLineNumber ? `Line ${activeLineNumber}` : "Line --";
   const appVersionLabel = isDesktop
     ? `v${window.electronAPI?.env.version ?? "1.0.0"}`
     : "Web Preview";
@@ -1925,7 +2199,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 <div className="mt-4 space-y-2 border-t border-[var(--cs-border)] pt-3">
                   <button
                     type="button"
-                    onClick={() => scrollToSection("account", "explorer")}
+                    onClick={openHelpPanel}
+                    aria-haspopup="dialog"
+                    aria-expanded={isHelpOpen}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--cs-text-muted)] transition hover:bg-[rgba(255,255,255,0.02)] hover:text-[var(--cs-text)]"
                   >
                     <span className="material-symbols-outlined text-[18px]">help_outline</span>
@@ -1933,7 +2209,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => scrollToSection("library", "explorer")}
+                    onClick={openFeedbackPanel}
+                    aria-haspopup="dialog"
+                    aria-expanded={isFeedbackOpen}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--cs-text-muted)] transition hover:bg-[rgba(255,255,255,0.02)] hover:text-[var(--cs-text)]"
                   >
                     <span className="material-symbols-outlined text-[18px]">chat_bubble_outline</span>
@@ -2054,7 +2332,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
               </div>
             ) : null}
 
-            <div className="flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(114,255,112,0.06),transparent_24%),linear-gradient(180deg,rgba(12,15,12,0.88),rgba(8,10,8,0.98))]">
+            <div className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(114,255,112,0.06),transparent_24%),linear-gradient(180deg,rgba(12,15,12,0.88),rgba(8,10,8,0.98))]">
               <Editor
                 height="100%"
                 defaultLanguage={monacoLanguageMap[language]}
@@ -2078,6 +2356,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                   cursorBlinking: "smooth",
                 }}
               />
+              <div className="editor-focus-overlay" aria-hidden="true" />
             </div>
           </motion.section>
 
@@ -2231,27 +2510,24 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 </div>
               </>
             ) : (
-                <ExecutionVisualizer
-                  trace={trace}
-                  step={activeStep}
-                  previousStep={previousStep}
-                  steps={playbackFrames}
-                  currentStepIndex={currentStepIndex}
-                  activeLineCode={activeLineCode}
-                  plainEnglishSummary={plainEnglishSummary}
-                  consoleOutput={consoleOutput}
-                  error={trace.error || undefined}
-                  isExecuting={isExecuting}
-                  onDiagnosticSelect={(diagnostic) => {
-                    focusDiagnostic(diagnostic);
-                    setActiveWorkspaceTab("visualizer");
-                    setActiveRailSection("flow");
-                  }}
-                  onStepSelect={(nextIndex) => {
-                    stopPlayback();
-                    setActiveWorkspaceTab("visualizer");
+              <ExecutionVisualizer
+                trace={trace}
+                step={activeStep}
+                previousStep={previousStep}
+                steps={playbackFrames}
+                currentStepIndex={currentStepIndex}
+                activeLineCode={activeLineCode}
+                plainEnglishSummary={plainEnglishSummary}
+                consoleOutput={consoleOutput}
+                error={trace.error || undefined}
+                isExecuting={isExecuting}
+                onDiagnosticSelect={(diagnostic) => {
+                  focusDiagnostic(diagnostic);
+                  setActiveWorkspaceTab("visualizer");
                   setActiveRailSection("flow");
-                  setCurrentStepIndex(nextIndex);
+                }}
+                onStepSelect={(nextIndex) => {
+                  jumpToPlaybackIndex(nextIndex, "visualizer", "flow");
                 }}
               />
             )}
@@ -2259,26 +2535,29 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         </div>
       </div>
 
+      <HelpPanel open={isHelpOpen} onClose={closeWorkspacePanels} />
+      <FeedbackPanel
+        open={isFeedbackOpen}
+        onClose={closeWorkspacePanels}
+        initialEmail={user?.email ?? ""}
+        isSubmitting={isSubmittingFeedback}
+        onSubmit={handleFeedbackSubmit}
+      />
       <PlaybackDock
         stepCount={playbackFrames.length}
         currentStepIndex={currentStepIndex}
-        activeLine={activeStep?.line}
+        activeLine={activeLineNumber ?? undefined}
+        currentFunctionName={currentFunctionName}
         isPlaying={isPlaying}
         playbackRate={playbackRate}
+        stepSummary={playbackSummary}
         onPlaybackRateChange={setPlaybackRate}
         onStepScrub={(nextIndex) => {
-          stopPlayback();
-          setActiveWorkspaceTab("visualizer");
-          setActiveRailSection("flow");
-          setCurrentStepIndex(nextIndex);
+          jumpToPlaybackIndex(nextIndex, "visualizer", "flow");
         }}
         onPrevious={handlePrevious}
         onNext={handleNext}
-        onTogglePlayback={() => {
-          setActiveWorkspaceTab("visualizer");
-          setActiveRailSection("flow");
-          togglePlayback();
-        }}
+        onTogglePlayback={handleTogglePlayback}
         onReset={handleReset}
       />
       <FooterBar
