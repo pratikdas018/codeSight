@@ -1,219 +1,146 @@
-import { scalePoint } from "d3-scale";
+import { memo, useMemo } from "react";
 import { LayoutGroup, motion } from "framer-motion";
 import clsx from "clsx";
-import type { ThemeMode, VisualArray } from "../visualization/types";
+import type { MemoryArrayModel } from "../memory/types";
 
 interface ArrayVisualizerProps {
-  arrays: VisualArray[];
-  focusMode: boolean;
-  themeMode: ThemeMode;
+  arrays: MemoryArrayModel[];
 }
 
-const slotWidth = 88;
-const tokenWidth = 56;
+const maxDenseCells = 28;
 
-export const ArrayVisualizer = ({
-  arrays,
-  focusMode,
-  themeMode,
-}: ArrayVisualizerProps) => {
-  const isDark = themeMode === "dark";
+const buildVisibleCells = (array: MemoryArrayModel) => {
+  if (array.cells.length <= maxDenseCells) {
+    return array.cells;
+  }
+
+  const highlighted = new Set(array.highlightedIndices);
+  const visibleIndexes = new Set<number>();
+
+  for (let index = 0; index < 12; index += 1) {
+    visibleIndexes.add(index);
+  }
+
+  for (let index = Math.max(array.cells.length - 10, 0); index < array.cells.length; index += 1) {
+    visibleIndexes.add(index);
+  }
+
+  for (const index of highlighted) {
+    for (let cursor = Math.max(0, index - 1); cursor <= Math.min(array.cells.length - 1, index + 1); cursor += 1) {
+      visibleIndexes.add(cursor);
+    }
+  }
+
+  return array.cells.filter((cell) => typeof cell.index === "number" && visibleIndexes.has(cell.index));
+};
+
+export const ArrayVisualizer = memo(({ arrays }: ArrayVisualizerProps) => {
+  const preparedArrays = useMemo(
+    () =>
+      arrays.map((array) => ({
+        ...array,
+        visibleCells: buildVisibleCells(array),
+      })),
+    [arrays],
+  );
 
   if (arrays.length === 0) {
-    return (
-      <div
-        className={clsx(
-          "rounded-[1.9rem] border border-dashed px-5 py-10 text-sm",
-          isDark
-            ? "border-white/10 bg-[#091525]/82 text-slate-400"
-            : "border-slate-200 bg-slate-50/80 text-slate-500",
-        )}
-      >
-        Arrays will render here as animated blocks once the current step contains
-        array data.
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div className="space-y-5">
-      {arrays.map((array) => {
-        const width = Math.max(array.items.length * slotWidth, 280);
-        const scale = scalePoint<number>()
-          .domain(array.items.map((item) => item.index))
-          .range([44, Math.max(44, width - 44)])
-          .padding(0.45);
-        const isEmphasized =
-          array.activeIndices.length > 0 || array.items.some((item) => item.changed);
+    <section className="rounded-[1.45rem] border border-[var(--cs-border)] bg-[rgba(10,12,10,0.82)] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.24)]">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
+            Arrays and Vectors
+          </div>
+          <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
+            Indexed cells, resize hints, and changed values stay synchronized with playback.
+          </p>
+        </div>
+        <span className="rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--cs-text-muted)]">
+          {arrays.length} tracked
+        </span>
+      </div>
 
-        return (
-          <motion.section
+      <div className="mt-4 space-y-4">
+        {preparedArrays.map((array) => (
+          <motion.article
             key={array.id}
             layout
-            className={clsx(
-              "rounded-[1.9rem] border p-4 transition shadow-[0_18px_48px_rgba(0,0,0,0.22)]",
-              isDark
-                ? "border-white/10 bg-[linear-gradient(180deg,rgba(10,23,37,0.92),rgba(8,18,31,0.96))]"
-                : "border-white/70 bg-white/90",
-              focusMode && !isEmphasized
-                ? "opacity-45 saturate-50"
-                : "opacity-100",
-            )}
+            className="rounded-[1.3rem] border border-[rgba(255,255,255,0.05)] bg-[rgba(7,9,7,0.92)] p-3"
           >
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p
-                  className={clsx(
-                    "font-mono text-xs uppercase tracking-[0.24em]",
-                    isDark ? "text-slate-400" : "text-slate-400",
-                  )}
-                >
-                  Array Structure
-                </p>
-                <h3
-                  className={clsx(
-                    "mt-2 text-lg font-semibold",
-                    isDark ? "text-slate-100" : "text-ink",
-                  )}
-                >
-                  {array.name}
-                </h3>
+                <div className="text-sm font-semibold text-[var(--cs-text)]">
+                  {array.label}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+                  <span>{array.collectionType}</span>
+                  <span>{array.address}</span>
+                  <span>size {array.size}</span>
+                  <span>capacity {array.capacity}</span>
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {array.pointers.map((pointer) => (
-                  <span
-                    key={`${array.id}-${pointer.name}`}
-                        className={clsx(
-                          "rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-[0.2em]",
-                          pointer.active
-                            ? isDark
-                              ? "bg-cyan-300/12 text-cyan-100"
-                              : "bg-cyan-100 text-cyan-700"
-                            : isDark
-                              ? "bg-white/[0.04] text-slate-300"
-                              : "bg-slate-100 text-slate-600",
-                        )}
-                  >
-                    {pointer.name} = {pointer.index}
-                  </span>
-                ))}
+              <div className="rounded-full border border-[rgba(114,255,112,0.16)] bg-[rgba(114,255,112,0.08)] px-3 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--cs-primary-bright)]">
+                {array.highlightedIndices.length} updated
               </div>
             </div>
 
-            <div className="mt-4 overflow-x-auto pb-2">
-              <LayoutGroup id={array.id}>
-                <div className="relative h-44 min-w-max" style={{ width }}>
-                  <div className="absolute inset-x-0 top-14 flex gap-4">
-                    {array.items.map((item) => (
-                      <div
-                        key={`slot-${array.id}-${item.index}`}
-                        className={clsx(
-                          "flex h-24 w-[72px] flex-col items-center justify-end rounded-[1.4rem] border pb-3",
-                          array.activeIndices.includes(item.index)
-                            ? isDark
-                              ? "border-cyan-300/24 bg-cyan-300/10"
-                              : "border-cyan-300 bg-cyan-50"
-                            : isDark
-                              ? "border-white/8 bg-[#07111f]/82"
-                              : "border-slate-200 bg-slate-50/90",
-                        )}
+            <div className="mt-3">
+              <div className="mb-3 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+                <motion.div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,#00ff41,#72ff70)]"
+                  initial={false}
+                  animate={{
+                    width: `${array.capacity === 0 ? 0 : (array.size / array.capacity) * 100}%`,
+                  }}
+                  transition={{ duration: 0.35, ease: "easeOut" }}
+                />
+              </div>
+
+              <div className="workbench-scrollbar overflow-x-auto pb-2">
+                <LayoutGroup id={array.id}>
+                  <div className="flex min-w-max items-end gap-2">
+                    {array.visibleCells.map((cell) => (
+                      <motion.div
+                        key={cell.id}
+                        layout
+                        animate={
+                          cell.diffState !== "unchanged"
+                            ? { y: [0, -4, 0], scale: [1, 1.03, 1] }
+                            : { y: 0, scale: 1 }
+                        }
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        className="flex min-w-[74px] flex-col items-center gap-1"
                       >
-                        <span
-                          className={clsx(
-                            "font-mono text-xs",
-                            isDark ? "text-slate-400" : "text-slate-400",
-                          )}
-                        >
-                          [{item.index}]
+                        <span className="font-mono text-[11px] text-[var(--cs-text-subtle)]">
+                          [{cell.index ?? 0}]
                         </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {array.pointers.map((pointer, pointerIndex) => {
-                    const xPosition = scale(pointer.index) ?? 44;
-
-                    return (
-                      <motion.div
-                        key={`${array.id}-pointer-${pointer.name}`}
-                        initial={false}
-                        animate={{ x: xPosition - tokenWidth / 2 }}
-                        transition={{ type: "spring", stiffness: 220, damping: 24 }}
-                        className="absolute left-0 top-0"
-                      >
-                        <div className="flex flex-col items-center">
-                          <div
-                            className={clsx(
-                              "rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em]",
-                              pointer.active
-                                ? isDark
-                                  ? "bg-cyan-300/12 text-cyan-100"
-                                  : "bg-cyan-100 text-cyan-700"
-                                : isDark
-                                  ? "bg-white/[0.04] text-slate-300"
-                                  : "bg-slate-100 text-slate-600",
-                            )}
-                            style={{ marginTop: pointerIndex * 26 }}
-                          >
-                            {pointer.name}
-                          </div>
-                          <div
-                            className={clsx(
-                              "mt-2 h-8 w-px",
-                              pointer.active
-                                ? "bg-cyan-300"
-                                : isDark
-                                  ? "bg-slate-600"
-                                  : "bg-slate-300",
-                            )}
-                          />
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-
-                  {array.items.map((item) => {
-                    const xPosition = scale(item.index) ?? 44;
-
-                    return (
-                      <motion.div
-                        key={`${array.id}-${item.motionId}`}
-                        layoutId={`${array.id}-${item.motionId}`}
-                        initial={false}
-                        animate={{
-                          x: xPosition - tokenWidth / 2,
-                          y: 74,
-                          scale: item.changed ? [1, 1.08, 1] : 1,
-                        }}
-                        transition={{
-                          x: { type: "spring", stiffness: 220, damping: 24 },
-                          scale: { duration: 0.45, ease: "easeOut" },
-                        }}
-                        className="absolute left-0 top-0"
-                      >
                         <div
                           className={clsx(
-                            "flex h-14 w-14 items-center justify-center rounded-[1rem] border text-sm font-semibold shadow-sm",
-                            item.changed
-                              ? isDark
-                                ? "border-cyan-300/24 bg-cyan-300/10 text-cyan-100 shadow-[0_0_24px_rgba(99,231,255,0.12)]"
-                                : "border-amber-300 bg-amber-100 text-amber-900"
-                              : isDark
-                                ? "border-white/8 bg-[#102033] text-slate-100"
-                                : "border-slate-200 bg-white text-ink",
+                            "flex h-16 w-[74px] items-center justify-center rounded-[1.1rem] border px-2 text-center font-mono text-xs shadow-[0_10px_18px_rgba(0,0,0,0.16)]",
+                            cell.diffState === "allocated"
+                              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
+                              : cell.diffState === "updated"
+                                ? "border-amber-300/30 bg-amber-300/10 text-amber-100"
+                                : "border-[rgba(255,255,255,0.06)] bg-[rgba(15,18,15,0.96)] text-[var(--cs-text)]",
                           )}
                         >
-                          {item.label}
+                          {cell.displayValue}
                         </div>
                       </motion.div>
-                    );
-                  })}
-                </div>
-              </LayoutGroup>
+                    ))}
+                  </div>
+                </LayoutGroup>
+              </div>
             </div>
-          </motion.section>
-        );
-      })}
-    </div>
+          </motion.article>
+        ))}
+      </div>
+    </section>
   );
-};
+});
+
+ArrayVisualizer.displayName = "ArrayVisualizer";

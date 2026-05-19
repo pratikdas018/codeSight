@@ -2,8 +2,12 @@ import { memo, type ReactElement, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import type { ExecutionDiagnostic, ExecutionStep, ExecutionTrace } from "../engine/types";
+import { useMemoryModel } from "../hooks/useMemoryModel";
 import { useVariableDiff } from "../hooks/useVariableDiff";
 import { createVisualizationModel } from "../visualization/model";
+import { MemoryVisualizer } from "./MemoryVisualizer";
+import { RecursionTree } from "./RecursionTree";
+import { StackView } from "./StackView";
 import { VariableTransition } from "./VariableTransition";
 
 type VisualizerSection = "variables" | "stack" | "memory" | "flow";
@@ -36,12 +40,12 @@ const sectionOrder: Array<{
   {
     key: "stack",
     label: "Stack",
-    helper: "Follow active function frames",
+    helper: "Track frames and recursion",
   },
   {
     key: "memory",
     label: "Memory",
-    helper: "See references and heap state",
+    helper: "Inspect heap, pointers, and collections",
   },
   {
     key: "flow",
@@ -1146,6 +1150,7 @@ export const ExecutionVisualizer = memo(
       () => createVisualizationModel(step, previousStep, variableDiff),
       [previousStep, step, variableDiff],
     );
+    const memoryModel = useMemoryModel(step, previousStep);
     const changedVariables = model.variables.filter(
       (variable) => variable.change !== "unchanged",
     );
@@ -1160,8 +1165,13 @@ export const ExecutionVisualizer = memo(
           variables={model.variables}
         />
       ),
-      stack: <StackFramesPanel frames={model.stackFrames} />,
-      memory: <MemoryPanel arrays={model.arrays} heapNodes={model.heapNodes} />,
+      stack: (
+        <div className="space-y-4">
+          <StackView frames={memoryModel.stackFrames} />
+          <RecursionTree roots={memoryModel.recursionRoots} />
+        </div>
+      ),
+      memory: <MemoryVisualizer model={memoryModel} />,
       flow: (
         <FlowPanel
           steps={steps}
@@ -1200,7 +1210,7 @@ export const ExecutionVisualizer = memo(
                 "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
               )}
             >
-              {model.stackFrames.length} frame{model.stackFrames.length === 1 ? "" : "s"}
+              {memoryModel.stackFrames.length} frame{memoryModel.stackFrames.length === 1 ? "" : "s"}
             </span>
             <span
               className={clsx(

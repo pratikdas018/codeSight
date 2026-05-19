@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
 import clsx from "clsx";
-import { ArrayVisualizer } from "./ArrayVisualizer";
-import { MemoryGraph } from "./MemoryGraph";
+import { MemoryVisualizer } from "./MemoryVisualizer";
 import { VariableBox } from "./VariableBox";
 import type { ExecutionStep } from "../engine/types";
+import { useMemoryModel } from "../hooks/useMemoryModel";
 import { createVisualizationModel } from "../visualization/model";
 import type { ThemeMode } from "../visualization/types";
 
@@ -30,6 +30,7 @@ export const VisualizationPanel = ({
 }: VisualizationPanelProps) => {
   const isDark = themeMode === "dark";
   const model = createVisualizationModel(step, previousStep);
+  const memoryModel = useMemoryModel(step, previousStep);
   const recentFlow = steps.slice(Math.max(0, currentStepIndex - 3), currentStepIndex + 3);
 
   return (
@@ -104,7 +105,7 @@ export const VisualizationPanel = ({
         ) : null}
       </motion.section>
 
-      <div className="grid flex-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+      <div className="grid flex-1 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <motion.section
           layout
           className={clsx(
@@ -164,22 +165,8 @@ export const VisualizationPanel = ({
           </div>
         </motion.section>
 
-        <MemoryGraph
-          variables={model.variables}
-          heapNodes={model.heapNodes}
-          links={model.links}
-          focusMode={focusMode}
-          themeMode={themeMode}
-        />
+        <MemoryVisualizer model={memoryModel} />
       </div>
-
-      <motion.section layout>
-        <ArrayVisualizer
-          arrays={model.arrays}
-          focusMode={focusMode}
-          themeMode={themeMode}
-        />
-      </motion.section>
 
       <motion.section
         layout
