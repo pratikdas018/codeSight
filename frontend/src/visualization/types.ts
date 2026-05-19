@@ -39,6 +39,15 @@ export interface VisualVariable {
     | "updated"
     | "removed"
     | "unchanged";
+  present: boolean;
+  changeCount: number;
+  diffPaths: Array<{
+    path: string;
+    kind: "added" | "updated" | "removed";
+    before?: string;
+    after?: string;
+  }>;
+  changeSummary: string;
   isPointer: boolean;
   pointerIndex?: number;
   isComposite: boolean;

@@ -1,5 +1,4 @@
 import {
-  type MouseEvent,
   startTransition,
   useDeferredValue,
   useEffect,
@@ -673,12 +672,6 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     Math.max(0, currentStepIndex - 2),
     Math.min(playbackFrames.length, currentStepIndex + 3),
   );
-  const timelineProgress =
-    playbackFrames.length <= 1
-      ? playbackFrames.length === 1
-        ? 100
-        : 0
-      : (currentStepIndex / (playbackFrames.length - 1)) * 100;
   const deferredCode = useDeferredValue(code);
   const codeLines = useMemo(() => deferredCode.split(/\r?\n/), [deferredCode]);
   const activeLineCode =
@@ -1590,22 +1583,6 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     }
   };
 
-  const handleTimelineClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (playbackFrames.length === 0) {
-      return;
-    }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const ratio = (event.clientX - rect.left) / rect.width;
-    const nextIndex = Math.round(ratio * Math.max(playbackFrames.length - 1, 0));
-    setIsHelpOpen(false);
-    setIsFeedbackOpen(false);
-    stopPlayback();
-    setActiveWorkspaceTab("visualizer");
-    setActiveRailSection("flow");
-    setCurrentStepIndex(nextIndex);
-  };
-
   const scrollToSection = (section: SectionKey, tab: WorkspaceTab) => {
     setIsHelpOpen(false);
     setIsFeedbackOpen(false);
@@ -1637,9 +1614,11 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     stopPlayback();
     setActiveWorkspaceTab(tab);
     setActiveRailSection(section);
-    setCurrentStepIndex(
-      Math.max(0, Math.min(nextIndex, Math.max(playbackFrames.length - 1, 0))),
-    );
+    startTransition(() => {
+      setCurrentStepIndex(
+        Math.max(0, Math.min(nextIndex, Math.max(playbackFrames.length - 1, 0))),
+      );
+    });
   };
 
   const handlePrevious = () => {
@@ -2544,13 +2523,14 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         onSubmit={handleFeedbackSubmit}
       />
       <PlaybackDock
-        stepCount={playbackFrames.length}
+        steps={playbackFrames}
         currentStepIndex={currentStepIndex}
         activeLine={activeLineNumber ?? undefined}
         currentFunctionName={currentFunctionName}
         isPlaying={isPlaying}
         playbackRate={playbackRate}
         stepSummary={playbackSummary}
+        traceError={trace.error || undefined}
         onPlaybackRateChange={setPlaybackRate}
         onStepScrub={(nextIndex) => {
           jumpToPlaybackIndex(nextIndex, "visualizer", "flow");
@@ -2558,6 +2538,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         onPrevious={handlePrevious}
         onNext={handleNext}
         onTogglePlayback={handleTogglePlayback}
+        onPausePlayback={stopPlayback}
         onReset={handleReset}
       />
       <FooterBar

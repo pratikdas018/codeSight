@@ -1,37 +1,45 @@
-import { motion } from "framer-motion";
 import clsx from "clsx";
+import type { ExecutionStep } from "../engine/types";
+import { TimelineScrubber } from "./TimelineScrubber";
 
 interface PlaybackDockProps {
-  stepCount: number;
+  steps: ExecutionStep[];
   currentStepIndex: number;
   activeLine?: number;
   currentFunctionName?: string;
   isPlaying: boolean;
   playbackRate: number;
   stepSummary: string;
+  traceError?: string;
+  breakpointLines?: number[];
   onPlaybackRateChange: (value: number) => void;
   onStepScrub: (nextIndex: number) => void;
   onPrevious: () => void;
   onNext: () => void;
   onTogglePlayback: () => void;
+  onPausePlayback: () => void;
   onReset: () => void;
 }
 
 export const PlaybackDock = ({
-  stepCount,
+  steps,
   currentStepIndex,
   activeLine,
   currentFunctionName,
   isPlaying,
   playbackRate,
   stepSummary,
+  traceError,
+  breakpointLines,
   onPlaybackRateChange,
   onStepScrub,
   onPrevious,
   onNext,
   onTogglePlayback,
+  onPausePlayback,
   onReset,
 }: PlaybackDockProps) => {
+  const stepCount = steps.length;
   const hasTrace = stepCount > 0;
   const timelineProgress =
     hasTrace && stepCount > 1
@@ -45,10 +53,10 @@ export const PlaybackDock = ({
 
   return (
     <div className="fixed inset-x-0 bottom-12 z-50 px-3 sm:px-4 lg:px-6">
-      <div className="mx-auto max-w-[1900px] rounded-[1.2rem] border border-[#1f1f1f] bg-[rgba(10,10,10,0.94)] px-3 py-3 shadow-[0_18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="mx-auto max-w-[1900px] rounded-[1.35rem] border border-[#1f1f1f] bg-[rgba(7,9,7,0.96)] px-3 py-3 shadow-[0_24px_54px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr),auto] xl:items-center">
+          <div className="min-w-0">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-[#1f1f1f] bg-[#0a0a0a] px-3 py-1.5 font-mono text-[11px] text-[#dfffe5]">
                 {hasTrace ? `Frame ${currentStepIndex + 1}/${stepCount}` : "No trace"}
               </span>
@@ -58,46 +66,40 @@ export const PlaybackDock = ({
               <span className="rounded-full border border-[rgba(114,255,112,0.14)] bg-[rgba(114,255,112,0.07)] px-3 py-1.5 font-mono text-[11px] text-[#72ff70]">
                 {currentFunctionName ?? "global scope"}
               </span>
+              <span className="rounded-full border border-[rgba(114,255,112,0.08)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 font-mono text-[11px] text-[#84967e]">
+                {hasTrace ? `${timelineProgress.toFixed(0)}% through trace` : "Awaiting playback"}
+              </span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
-                <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full border border-[#1f1f1f] bg-[#070907]" />
-                <motion.div
-                  className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-[linear-gradient(90deg,rgba(0,255,65,0.18),rgba(114,255,112,0.42))] shadow-[0_0_22px_rgba(0,255,65,0.18)]"
-                  initial={false}
-                  animate={{
-                    width: `${timelineProgress}%`,
-                  }}
-                  transition={{ duration: isPlaying ? 0.26 : 0.16, ease: "easeOut" }}
-                />
-                <input
-                  type="range"
-                  min={0}
-                  max={Math.max(stepCount - 1, 0)}
-                  step={1}
-                  value={hasTrace ? currentStepIndex : 0}
-                  onChange={(event) => onStepScrub(Number(event.target.value))}
-                  disabled={!hasTrace}
-                  className={clsx(
-                    "relative z-10 h-2.5 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#00ff41]",
-                    hasTrace ? "opacity-100" : "cursor-not-allowed opacity-40",
-                  )}
-                />
-              </div>
-            </div>
+            <TimelineScrubber
+              steps={steps}
+              currentStepIndex={currentStepIndex}
+              isPlaying={isPlaying}
+              breakpointLines={breakpointLines}
+              traceError={traceError}
+              onStepSelect={onStepScrub}
+              onPrevious={onPrevious}
+              onNext={onNext}
+              onTogglePlayback={onTogglePlayback}
+              onPausePlayback={onPausePlayback}
+            />
 
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <p className="min-w-0 flex-1 truncate text-sm text-[#b9ccb2]">
                 {dockSummary}
               </p>
-              <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#84967e]">
-                {hasTrace ? `${timelineProgress.toFixed(0)}% through trace` : "Awaiting playback"}
+              <span
+                className={clsx(
+                  "font-mono text-[11px] uppercase tracking-[0.16em]",
+                  traceError ? "text-rose-200" : "text-[#84967e]",
+                )}
+              >
+                {traceError ? "Runtime issue captured on timeline" : "Hover to preview any frame"}
               </span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             <button
               type="button"
               onClick={onReset}
@@ -145,6 +147,7 @@ export const PlaybackDock = ({
                 value={playbackRate}
                 onChange={(event) => onPlaybackRateChange(Number(event.target.value))}
                 className="w-24 accent-[#00ff41]"
+                aria-label="Playback speed"
               />
               <span className="w-10 text-right font-mono text-[#dfffe5]">
                 {playbackRate.toFixed(2)}x

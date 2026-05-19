@@ -3,12 +3,17 @@ import type {
   StackFrameSnapshot,
   VariableSnapshot,
 } from "../engine/types";
+import type { ExecutionFrameComparison } from "../utils/executionDiff";
+import {
+  compareExecutionFrames,
+  inferRuntimeValueType,
+  normalizeExecutionVariables,
+  parseRuntimeValue,
+} from "../utils/executionDiff";
 import type {
   HeapNode,
   MemoryLink,
   ParsedArrayValue,
-  ParsedObjectValue,
-  ParsedValue,
   VisualArray,
   VisualStackFrame,
   VisualVariable,
@@ -33,156 +38,6 @@ const pointerVariableNames = new Set([
   "end",
 ]);
 
-const splitTopLevel = (value: string, delimiter: string) => {
-  const parts: string[] = [];
-  let current = "";
-  let depth = 0;
-  let quote: "'" | '"' | null = null;
-
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    const previousChar = value[index - 1];
-
-    if ((char === "'" || char === '"') && previousChar !== "\\") {
-      if (quote === char) {
-        quote = null;
-      } else if (!quote) {
-        quote = char;
-      }
-    }
-
-    if (!quote) {
-      if (char === "[" || char === "{" || char === "(") {
-        depth += 1;
-      } else if (char === "]" || char === "}" || char === ")") {
-        depth -= 1;
-      } else if (char === delimiter && depth === 0) {
-        if (current.trim()) {
-          parts.push(current.trim());
-        }
-        current = "";
-        continue;
-      }
-    }
-
-    current += char;
-  }
-
-  if (current.trim()) {
-    parts.push(current.trim());
-  }
-
-  return parts;
-};
-
-const stripQuotes = (value: string) => {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-
-  return value;
-};
-
-export const parseSerializedValue = (value: string): ParsedValue => {
-  const trimmedValue = value.trim();
-
-  if (trimmedValue.startsWith("[") && trimmedValue.endsWith("]")) {
-    const content = trimmedValue.slice(1, -1).trim();
-    const items = content ? splitTopLevel(content, ",").map(parseSerializedValue) : [];
-
-    return {
-      kind: "array",
-      display: trimmedValue,
-      items,
-    };
-  }
-
-  if (trimmedValue.startsWith("{") && trimmedValue.endsWith("}")) {
-    const content = trimmedValue.slice(1, -1).trim();
-    const entries = content
-      ? splitTopLevel(content, ",").map((part) => {
-          const [rawKey, ...valueParts] = splitTopLevel(part, ":");
-          const normalizedKey = stripQuotes(rawKey ?? "entry");
-          const rawEntryValue = valueParts.join(":").trim();
-
-          return {
-            key: normalizedKey,
-            value: parseSerializedValue(rawEntryValue || "undefined"),
-          };
-        })
-      : [];
-
-    return {
-      kind: "object",
-      display: trimmedValue,
-      entries,
-    };
-  }
-
-  if (
-    (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
-    (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))
-  ) {
-    return {
-      kind: "primitive",
-      display: stripQuotes(trimmedValue),
-    };
-  }
-
-  if (trimmedValue === "true" || trimmedValue === "false") {
-    return {
-      kind: "primitive",
-      display: trimmedValue,
-    };
-  }
-
-  if (
-    trimmedValue === "null" ||
-    trimmedValue === "undefined" ||
-    trimmedValue === "None"
-  ) {
-    return {
-      kind: "primitive",
-      display: trimmedValue,
-    };
-  }
-
-  const numericValue = Number(trimmedValue);
-
-  if (Number.isFinite(numericValue)) {
-    return {
-      kind: "primitive",
-      display: trimmedValue,
-      numericValue,
-    };
-  }
-
-  return {
-    kind: "primitive",
-    display: trimmedValue,
-  };
-};
-
-const normalizeVariables = (variables: ExecutionStep["variables"]): VariableSnapshot[] => {
-  if (Array.isArray(variables)) {
-    return variables;
-  }
-
-  return Object.entries(variables).map(([name, value]) => ({
-    name,
-    scope: "global",
-    value:
-      typeof value === "string"
-        ? value
-        : typeof value === "undefined"
-          ? "undefined"
-          : JSON.stringify(value),
-  }));
-};
-
 const buildOccurrenceId = (values: string[]) => {
   const seenCounts = new Map<string, number>();
 
@@ -191,51 +46,6 @@ const buildOccurrenceId = (values: string[]) => {
     seenCounts.set(value, currentCount + 1);
     return `${value}::${currentCount}`;
   });
-};
-
-const getPreviousVariableMap = (step: ExecutionStep | null) =>
-  new Map(
-    normalizeVariables(step?.variables ?? []).map((variable) => [
-      `${variable.scope}:${variable.name}`,
-      variable.value,
-    ]),
-  );
-
-const inferValueType = (rawValue: string, parsedValue: ParsedValue) => {
-  if (parsedValue.kind === "array") {
-    return "array";
-  }
-
-  if (parsedValue.kind === "object") {
-    return "object";
-  }
-
-  const trimmedValue = rawValue.trim();
-
-  if (
-    (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
-    (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))
-  ) {
-    return "string";
-  }
-
-  if (trimmedValue === "true" || trimmedValue === "false") {
-    return "boolean";
-  }
-
-  if (trimmedValue === "null" || trimmedValue === "None") {
-    return "null";
-  }
-
-  if (trimmedValue === "undefined") {
-    return "undefined";
-  }
-
-  if (typeof parsedValue.numericValue === "number") {
-    return Number.isInteger(parsedValue.numericValue) ? "integer" : "number";
-  }
-
-  return "value";
 };
 
 const isPointerCandidate = (variable: VisualVariable) =>
@@ -280,7 +90,7 @@ const buildHeapNode = (variable: VisualVariable): HeapNode | null => {
 
 const getChangedArrayIndices = (
   currentValue: ParsedArrayValue,
-  previousValue?: ParsedArrayValue | ParsedObjectValue | ParsedValue,
+  previousValue?: ParsedArrayValue,
 ) => {
   if (!previousValue || previousValue.kind !== "array") {
     return new Set(currentValue.items.map((_item, index) => index));
@@ -301,43 +111,45 @@ const getChangedArrayIndices = (
 export const createVisualizationModel = (
   step: ExecutionStep | null,
   previousStep: ExecutionStep | null,
+  comparison?: ExecutionFrameComparison,
 ): VisualizationModel => {
-  const currentVariables = normalizeVariables(step?.variables ?? []);
-  const previousVariables = getPreviousVariableMap(previousStep);
+  const frameComparison = comparison ?? compareExecutionFrames(previousStep, step);
+  const currentVariables = normalizeExecutionVariables(step);
+  const currentVariableMap = new Map(
+    currentVariables.map((variable) => [variable.id, variable]),
+  );
 
-  const visualVariables: VisualVariable[] = currentVariables.map((variable) => {
-    const previousValue = previousVariables.get(`${variable.scope}:${variable.name}`);
-    const parsedValue = parseSerializedValue(variable.value);
+  const visualVariables: VisualVariable[] = frameComparison.all.map((entry) => {
+    const activeValue = entry.currentValue ?? entry.previousValue ?? "undefined";
+    const currentDisplayValue = entry.present ? activeValue : "[deleted]";
+    const parsedValue = entry.currentParsed ?? entry.previousParsed ?? parseRuntimeValue("undefined");
     const pointerIndex =
       parsedValue.kind === "primitive" &&
       typeof parsedValue.numericValue === "number" &&
       Number.isInteger(parsedValue.numericValue)
         ? parsedValue.numericValue
         : undefined;
-    const isComposite =
-      parsedValue.kind === "array" || parsedValue.kind === "object";
-    const change =
-      typeof previousValue === "undefined"
-        ? "added"
-        : previousValue !== variable.value
-          ? "updated"
-          : "unchanged";
+    const isComposite = parsedValue.kind === "array" || parsedValue.kind === "object";
 
     return {
-      id: `${variable.scope}:${variable.name}`,
-      name: variable.name,
-      scope: variable.scope,
-      currentValue: variable.value,
-      previousValue,
-      valueType: inferValueType(variable.value, parsedValue),
+      id: entry.id,
+      name: entry.name,
+      scope: entry.scope,
+      currentValue: currentDisplayValue,
+      previousValue: entry.previousValue,
+      valueType: inferRuntimeValueType(activeValue, parsedValue),
       parsedValue,
-      change,
+      change: entry.kind,
+      present: entry.present,
+      changeCount: entry.changeCount,
+      diffPaths: entry.changes,
+      changeSummary: entry.summary,
       isPointer:
         typeof pointerIndex === "number" &&
-        pointerVariableNames.has(variable.name.toLowerCase()),
+        pointerVariableNames.has(entry.name.toLowerCase()),
       pointerIndex,
       isComposite,
-      emphasis: change !== "unchanged" || isComposite,
+      emphasis: entry.kind !== "unchanged" || isComposite,
     };
   });
 
@@ -349,7 +161,13 @@ export const createVisualizationModel = (
     new Set(currentVariables.map((variable) => variable.scope)),
   ).map((scopeName) => ({
     name: scopeName,
-    locals: currentVariables.filter((variable) => variable.scope === scopeName),
+    locals: currentVariables
+      .filter((variable) => variable.scope === scopeName)
+      .map((variable) => ({
+        name: variable.name,
+        scope: variable.scope,
+        value: variable.rawValue,
+      })),
   }));
 
   const stackFrames: VisualStackFrame[] = (step?.stack ?? fallbackFrames).map(
@@ -374,13 +192,16 @@ export const createVisualizationModel = (
   const arrays: VisualArray[] = visualVariables
     .filter(
       (variable): variable is VisualVariable & { parsedValue: ParsedArrayValue } =>
-        variable.parsedValue.kind === "array",
+        variable.present && variable.parsedValue.kind === "array",
     )
     .map((variable) => {
       const previousValue = variable.previousValue
-        ? parseSerializedValue(variable.previousValue)
+        ? parseRuntimeValue(variable.previousValue)
         : undefined;
-      const changedIndices = getChangedArrayIndices(variable.parsedValue, previousValue);
+      const changedIndices =
+        previousValue?.kind === "array"
+          ? getChangedArrayIndices(variable.parsedValue, previousValue)
+          : getChangedArrayIndices(variable.parsedValue);
       const occurrenceIds = buildOccurrenceId(
         variable.parsedValue.items.map((item) => item.display),
       );
@@ -413,12 +234,12 @@ export const createVisualizationModel = (
     });
 
   const heapNodes = visualVariables
-    .filter((variable) => variable.isComposite)
+    .filter((variable) => variable.present && variable.isComposite)
     .map(buildHeapNode)
     .filter((node): node is HeapNode => Boolean(node));
 
   const links: MemoryLink[] = visualVariables
-    .filter((variable) => variable.isComposite)
+    .filter((variable) => variable.present && variable.isComposite)
     .map((variable) => ({
       sourceId: variable.id,
       targetId: `heap:${variable.id}`,

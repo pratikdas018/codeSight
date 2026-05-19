@@ -12,19 +12,40 @@ export const usePlayback = (
       return undefined;
     }
 
-    const intervalId = window.setInterval(() => {
-      setStepIndex((currentStep) => {
-        if (currentStep >= stepCount - 1) {
-          setIsPlaying(false);
-          return currentStep;
-        }
+    let frameId = 0;
+    let lastAdvanceAt = performance.now();
 
-        return currentStep + 1;
-      });
-    }, stepDurationMs);
+    const tick = (now: number) => {
+      if (now - lastAdvanceAt >= stepDurationMs) {
+        const advanceBy = Math.max(
+          1,
+          Math.floor((now - lastAdvanceAt) / stepDurationMs),
+        );
+        lastAdvanceAt = now;
+
+        setStepIndex((currentStep) => {
+          if (currentStep >= stepCount - 1) {
+            setIsPlaying(false);
+            return currentStep;
+          }
+
+          const nextStep = Math.min(currentStep + advanceBy, stepCount - 1);
+
+          if (nextStep >= stepCount - 1) {
+            setIsPlaying(false);
+          }
+
+          return nextStep;
+        });
+      }
+
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
 
     return () => {
-      window.clearInterval(intervalId);
+      window.cancelAnimationFrame(frameId);
     };
   }, [isPlaying, setStepIndex, stepCount, stepDurationMs]);
 

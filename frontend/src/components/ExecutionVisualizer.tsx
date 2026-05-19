@@ -1,8 +1,10 @@
 import { memo, type ReactElement, useMemo, useState } from "react";
-import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import type { ExecutionDiagnostic, ExecutionStep, ExecutionTrace } from "../engine/types";
+import { useVariableDiff } from "../hooks/useVariableDiff";
 import { createVisualizationModel } from "../visualization/model";
+import { VariableTransition } from "./VariableTransition";
 
 type VisualizerSection = "variables" | "stack" | "memory" | "flow";
 
@@ -56,15 +58,6 @@ const innerPanelClass =
 
 const chipBaseClass =
   "rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.14em]";
-
-const changeToneClasses: Record<string, string> = {
-  added: "border-[rgba(114,255,112,0.22)] bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]",
-  updated:
-    "border-[rgba(114,255,112,0.18)] bg-[rgba(114,255,112,0.08)] text-[var(--cs-primary-soft)]",
-  unchanged:
-    "border-[var(--cs-border)] bg-[rgba(15,20,15,0.95)] text-[var(--cs-text-muted)]",
-  removed: "border-rose-300/20 bg-rose-300/8 text-rose-100",
-};
 
 const executionStatusTone: Record<string, string> = {
   queued: "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
@@ -225,87 +218,19 @@ const VariableStateList = memo(
         </span>
       </div>
 
-      <LayoutGroup>
-        <div className="mt-4 max-h-[18rem] space-y-2.5 overflow-y-auto pr-1">
-          {variables.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
-              Variables appear here as soon as the trace captures runtime state.
-            </div>
-          ) : (
-            variables.map((variable) => {
-              const isChanged = variable.change !== "unchanged";
-
-              return (
-                <motion.div
-                  key={variable.id}
-                  layout
-                  initial={false}
-                  animate={
-                    isChanged
-                      ? {
-                          boxShadow: [
-                            "0 0 0 rgba(114,255,112,0)",
-                            "0 12px 30px rgba(114,255,112,0.12)",
-                            "0 0 0 rgba(114,255,112,0)",
-                          ],
-                        }
-                      : {}
-                  }
-                  transition={{ duration: 0.42, ease: "easeOut" }}
-                  className={clsx(
-                    "rounded-2xl border px-3.5 py-3",
-                    changeToneClasses[variable.change] ??
-                      changeToneClasses.unchanged,
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate font-medium text-[var(--cs-text)]">
-                          {variable.name}
-                        </span>
-                        <span className="rounded-full border border-[rgba(255,255,255,0.04)] bg-[rgba(255,255,255,0.03)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-muted)]">
-                          {variable.valueType}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-                        {variable.scope}
-                      </div>
-                    </div>
-
-                    <span className="rounded-full border border-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-muted)]">
-                      {variable.change}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(11,15,11,0.92)] px-3 py-2.5 font-mono text-xs leading-6 text-[var(--cs-text)]">
-                    {variable.currentValue}
-                  </div>
-
-                  <AnimatePresence initial={false}>
-                    {isChanged && variable.previousValue ? (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 6 }}
-                        className="mt-2.5 flex items-center gap-2 text-[11px] text-[var(--cs-text-muted)]"
-                      >
-                        <span className="font-mono text-[var(--cs-text-subtle)]">
-                          {variable.previousValue}
-                        </span>
-                        <span className="text-[var(--cs-primary-bright)]">to</span>
-                        <span className="font-mono text-[var(--cs-text)]">
-                          {variable.currentValue}
-                        </span>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })
-          )}
-        </div>
-      </LayoutGroup>
+      <div className="mt-4 max-h-[18rem] space-y-2.5 overflow-y-auto pr-1">
+        {variables.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-5 text-sm leading-6 text-[var(--cs-text-muted)]">
+            Variables appear here as soon as the trace captures runtime state.
+          </div>
+        ) : (
+          <AnimatePresence initial={false}>
+            {variables.map((variable) => (
+              <VariableTransition key={variable.id} variable={variable} />
+            ))}
+          </AnimatePresence>
+        )}
+      </div>
     </section>
   ),
 );
@@ -1216,9 +1141,10 @@ export const ExecutionVisualizer = memo(
   }: ExecutionVisualizerProps) => {
     const [mobileSection, setMobileSection] =
       useState<VisualizerSection>("variables");
+    const variableDiff = useVariableDiff(previousStep, step);
     const model = useMemo(
-      () => createVisualizationModel(step, previousStep),
-      [previousStep, step],
+      () => createVisualizationModel(step, previousStep, variableDiff),
+      [previousStep, step, variableDiff],
     );
     const changedVariables = model.variables.filter(
       (variable) => variable.change !== "unchanged",
