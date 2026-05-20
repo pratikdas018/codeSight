@@ -33,6 +33,26 @@ const resolveQueryParam = (params: URLSearchParams, key: string) =>
   params.get(key) ?? undefined;
 
 const getRedirectHomeUrl = () => siteUrl ?? "/";
+const getLoginUrl = () => getRedirectHomeUrl();
+const REDIRECT_DELAY_MS = 1500;
+
+const normalizeConfirmationError = (message?: string) => {
+  const trimmed = message?.trim();
+
+  if (!trimmed) {
+    return "The verification link is invalid or has expired.";
+  }
+
+  if (trimmed.toLowerCase().includes("expired")) {
+    return "This confirmation link has expired. Request a fresh confirmation email and try again.";
+  }
+
+  if (trimmed.toLowerCase().includes("invalid")) {
+    return "This confirmation link is no longer valid. Request a fresh confirmation email and try again.";
+  }
+
+  return trimmed;
+};
 
 export const AuthConfirmScreen = () => {
   const [state, setState] = useState<ConfirmState>({
@@ -45,33 +65,85 @@ export const AuthConfirmScreen = () => {
     const verifyConfirmation = async () => {
       const searchParams = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const status =
+        resolveQueryParam(searchParams, "status") ??
+        resolveQueryParam(hashParams, "status");
+      const code =
+        resolveQueryParam(searchParams, "code") ??
+        resolveQueryParam(hashParams, "code");
+      const accessToken =
+        resolveQueryParam(searchParams, "access_token") ??
+        resolveQueryParam(hashParams, "access_token");
+      const refreshToken =
+        resolveQueryParam(searchParams, "refresh_token") ??
+        resolveQueryParam(hashParams, "refresh_token");
       const tokenHash =
         resolveQueryParam(searchParams, "token_hash") ??
         resolveQueryParam(hashParams, "token_hash");
       const rawType =
         resolveQueryParam(searchParams, "type") ??
         resolveQueryParam(hashParams, "type");
+      const returnedError =
+        resolveQueryParam(searchParams, "error_description") ??
+        resolveQueryParam(hashParams, "error_description") ??
+        resolveQueryParam(searchParams, "error") ??
+        resolveQueryParam(hashParams, "error");
       const type = VALID_OTP_TYPES.includes(rawType as EmailOtpType)
         ? (rawType as EmailOtpType)
         : null;
 
-      if (!tokenHash || !type) {
+      if (status === "confirmed") {
+        if (isMounted) {
+          setState({
+            status: "success",
+            title: "Email verified successfully.",
+            description:
+              "Your CodeSight account is confirmed. Redirecting you back to CodeSight now.",
+          });
+        }
+
+        window.setTimeout(() => {
+          window.location.replace(getRedirectHomeUrl());
+        }, REDIRECT_DELAY_MS);
+        return;
+      }
+
+      if (returnedError) {
         if (isMounted) {
           setState({
             status: "error",
-            title: "Verification link is incomplete.",
+            title: "We couldn't verify this email link.",
             description:
-              "Open the full email link again, or request a fresh confirmation email from CodeSight.",
+              normalizeConfirmationError(returnedError),
           });
         }
         return;
       }
 
       try {
-        const { error } = await requireSupabase().auth.verifyOtp({
-          token_hash: tokenHash,
-          type,
-        });
+        const supabase = requireSupabase();
+        let error: Error | null = null;
+
+        if (code) {
+          const result = await supabase.auth.exchangeCodeForSession(code);
+          error = result.error;
+        } else if (accessToken && refreshToken) {
+          const result = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          error = result.error;
+        } else if (tokenHash && type) {
+          const result = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type,
+          });
+          error = result.error;
+        } else {
+          throw new Error(
+            "Open the full confirmation link again, or request a fresh confirmation email from CodeSight.",
+          );
+        }
 
         if (error) {
           throw error;
@@ -84,13 +156,17 @@ export const AuthConfirmScreen = () => {
             status: "success",
             title: "Email verified successfully.",
             description:
-              "Your CodeSight account is now confirmed. Return to the app and log in with your email and password.",
+              "Your CodeSight account is confirmed. Redirecting you back to CodeSight now.",
           });
         }
+
+        window.setTimeout(() => {
+          window.location.replace(getRedirectHomeUrl());
+        }, REDIRECT_DELAY_MS);
       } catch (error) {
         const message =
           error instanceof Error
-            ? error.message
+            ? normalizeConfirmationError(error.message)
             : "The verification link is invalid or has expired.";
 
         if (isMounted) {
@@ -141,7 +217,13 @@ export const AuthConfirmScreen = () => {
             href={getRedirectHomeUrl()}
             className="inline-flex items-center rounded-full border border-[#1f1f1f] bg-[#00ff41] px-4 py-2.5 text-sm font-medium text-[#041005] transition hover:brightness-105"
           >
-            Open CodeSight site
+            Return to CodeSight
+          </a>
+          <a
+            href={getLoginUrl()}
+            className="inline-flex items-center rounded-full border border-[#1f1f1f] bg-[#0d140d] px-4 py-2.5 text-sm font-medium text-[#dfffe5] transition hover:border-[#2f5333] hover:text-[#ebffe2]"
+          >
+            Open sign in
           </a>
         </div>
       </div>
