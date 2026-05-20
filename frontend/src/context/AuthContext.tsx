@@ -17,6 +17,7 @@ import {
   signUpWithEmail,
   type AuthActionResult,
 } from "../services/authService";
+import { trackUserActivitySafe } from "../services/analyticsService";
 import type { User } from "../utils/types";
 
 type AuthMode = "login" | "signup";
@@ -128,6 +129,13 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         setPendingConfirmationEmail(null);
         setSession(result.session);
         setUser(result.user);
+        void trackUserActivitySafe({
+          userId: result.user.id,
+          action: mode === "signup" ? "login" : "login",
+          metadata: {
+            authMode: mode,
+          },
+        });
       } else {
         setPendingConfirmationEmail(result.email);
         setSession(null);
@@ -152,6 +160,15 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   };
 
   const logout = async () => {
+    if (user?.id) {
+      void trackUserActivitySafe({
+        userId: user.id,
+        action: "logout",
+        metadata: {
+          from: "renderer",
+        },
+      });
+    }
     await signOutSession();
     setSession(null);
     setUser(null);

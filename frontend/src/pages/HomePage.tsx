@@ -25,6 +25,11 @@ import {
   saveFeedbackRecord,
   type FeedbackCategory,
 } from "../services/feedbackService";
+import {
+  trackExecutionLogSafe,
+  trackUserActivitySafe,
+  trackVisualizationSessionSafe,
+} from "../services/analyticsService";
 import { createExecutionHistory, listExecutionHistory } from "../services/historyService";
 import {
   createSnippet,
@@ -836,6 +841,17 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         nextFilePath: resolvedPath,
         nextFileName: resolvedName,
       });
+      if (user?.id) {
+        void trackUserActivitySafe({
+          userId: user.id,
+          action: "open_file",
+          language: nextLanguage,
+          metadata: {
+            source: "desktop_file",
+            fileName: resolvedName,
+          },
+        });
+      }
       await refreshRecentFiles();
       setNotice({
         tone: "success",
@@ -876,6 +892,17 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       const nextFileName = result.name ?? desktopFileName ?? buildSuggestedFileName(title, language);
       setDesktopFilePath(result.filePath ?? desktopFilePath);
       setDesktopFileName(nextFileName);
+      if (user?.id) {
+        void trackUserActivitySafe({
+          userId: user.id,
+          action: "save_file",
+          language,
+          metadata: {
+            destination: "desktop_file",
+            fileName: nextFileName,
+          },
+        });
+      }
       await refreshRecentFiles();
       setNotice({
         tone: "success",
@@ -909,6 +936,17 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         language,
         code,
       });
+      if (user?.id) {
+        void trackUserActivitySafe({
+          userId: user.id,
+          action: "save_file",
+          language,
+          metadata: {
+            destination: "local_snippet",
+            title: savedSnippet.title,
+          },
+        });
+      }
 
       setNotice({
         tone: "success",
@@ -952,6 +990,17 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         nextFileName:
           (result.filePath ?? result.snippet.filePath).split(/[/\\]/).pop() ?? null,
       });
+      if (user?.id) {
+        void trackUserActivitySafe({
+          userId: user.id,
+          action: "open_file",
+          language: result.snippet.language,
+          metadata: {
+            source: "local_snippet",
+            title: result.snippet.title,
+          },
+        });
+      }
       setNotice({
         tone: "success",
         message: `Loaded local snippet "${result.snippet.title}".`,
@@ -1373,6 +1422,18 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       setActiveRailSection(nextPlaybackFrames.length > 0 ? "variables" : "guide");
 
       if (nextTrace.status !== "completed") {
+        if (user?.id) {
+          void trackUserActivitySafe({
+            userId: user.id,
+            action: nextTrace.error ? "runtime_error" : "failed_execution",
+            language,
+            metadata: {
+              status: nextTrace.status,
+              executionTime: nextTrace.executionTime,
+              failurePhase: nextTrace.failurePhase,
+            },
+          });
+        }
         const primaryDiagnostic = nextTrace.diagnostics[0];
         const timeoutHint =
           nextTrace.timedOut && !programInput.trim()
@@ -1390,6 +1451,18 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
           void refreshRuntimeManager();
         }
       } else {
+        if (user?.id) {
+          void trackUserActivitySafe({
+            userId: user.id,
+            action: "code_execution",
+            language,
+            metadata: {
+              executionTime: nextTrace.executionTime,
+              stepCount: nextPlaybackFrames.length,
+              traceStatus: nextTrace.traceSummary.status,
+            },
+          });
+        }
         setNotice({
           tone: "success",
           message:
@@ -1402,10 +1475,32 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       }
 
       if (!user || !currentSnippetId) {
+        if (user?.id) {
+          void trackExecutionLogSafe({
+            userId: user.id,
+            language,
+            code,
+            trace: nextTrace,
+            metadata: {
+              hadSavedSnippet: false,
+              stdinLength: programInput.length,
+            },
+          });
+        }
         return;
       }
 
       try {
+        await trackExecutionLogSafe({
+          userId: user.id,
+          language,
+          code,
+          trace: nextTrace,
+          metadata: {
+            snippetId: currentSnippetId,
+            stdinLength: programInput.length,
+          },
+        });
         await createExecutionHistory({
           userId: user.id,
           snippetId: currentSnippetId,
@@ -1486,6 +1581,16 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
 
       setCurrentSnippetId(savedSnippet.id);
       setTitle(savedSnippet.title);
+      void trackUserActivitySafe({
+        userId: user.id,
+        action: "save_file",
+        language,
+        metadata: {
+          destination: "supabase_snippet",
+          snippetId: savedSnippet.id,
+          mode: currentSnippetId ? "update" : "create",
+        },
+      });
       await refreshWorkspaceData();
       setNotice({
         tone: "success",
@@ -1524,6 +1629,15 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       setNotice({
         tone: "success",
         message: `Loaded "${snippet.title}" into the editor.`,
+      });
+      void trackUserActivitySafe({
+        userId: user.id,
+        action: "open_file",
+        language: snippet.language,
+        metadata: {
+          source: "supabase_snippet",
+          snippetId: snippet.id,
+        },
       });
     } catch (error) {
       rendererLogger.error("Snippet load failed.", error, {
@@ -1579,6 +1693,16 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       tone: "success",
       message: `Switched to ${languageLabels[nextLanguage]} mode.`,
     });
+    if (user?.id) {
+      void trackUserActivitySafe({
+        userId: user.id,
+        action: "language_switch",
+        language: nextLanguage,
+        metadata: {
+          previousLanguage: language,
+        },
+      });
+    }
   };
 
   const handleLogout = async () => {
@@ -1672,6 +1796,28 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       setCurrentStepIndex(0);
     }
 
+    if (!isPlaying && user?.id) {
+      void trackVisualizationSessionSafe({
+        userId: user.id,
+        language,
+        totalSteps: playbackFrames.length,
+        playbackDuration: trace.executionTime,
+        metadata: {
+          currentStepIndex,
+          traceStatus: trace.status,
+        },
+      });
+      void trackUserActivitySafe({
+        userId: user.id,
+        action: "visualization_playback",
+        language,
+        metadata: {
+          totalSteps: playbackFrames.length,
+          currentStepIndex,
+        },
+      });
+    }
+
     togglePlayback();
   };
 
@@ -1716,6 +1862,17 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     anchor.download = `codesight-${language}-trace.json`;
     anchor.click();
     URL.revokeObjectURL(url);
+    if (user?.id) {
+      void trackUserActivitySafe({
+        userId: user.id,
+        action: "export_usage",
+        language,
+        metadata: {
+          format: "json",
+          stepCount: playbackFrames.length,
+        },
+      });
+    }
   };
 
   const handleFeedbackSubmit = async ({
@@ -1749,10 +1906,11 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     setIsSubmittingFeedback(true);
 
     try {
-      saveFeedbackRecord({
+      await saveFeedbackRecord({
         category,
         email: normalizedEmail,
         message: message.trim(),
+        userId: user?.id ?? null,
         context: {
           appVersion: isDesktop
             ? window.electronAPI?.env.version ?? "1.0.0"
@@ -1769,7 +1927,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       setNotice({
         tone: "success",
         message:
-          "Feedback saved locally. Thanks for helping improve CodeSight.",
+          "Feedback submitted to CodeSight. Thanks for helping improve the product.",
       });
     } catch (error) {
       rendererLogger.error("Feedback persistence failed.", error, {
@@ -1781,7 +1939,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         message:
           error instanceof Error
             ? error.message
-            : "Unable to save feedback locally.",
+            : "Unable to submit feedback right now.",
       });
     } finally {
       setIsSubmittingFeedback(false);
@@ -2507,6 +2665,17 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                     <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">
                       This workspace is only available after a valid CodeSight session is restored.
                     </p>
+                    {user?.isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.hash = "#/admin";
+                        }}
+                        className="cs-button mt-4 w-full rounded-xl px-3"
+                      >
+                        Open admin dashboard
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => {

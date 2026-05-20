@@ -54,12 +54,12 @@ export const FeedbackPanel = ({
       onClose={onClose}
       icon="chat_bubble"
       title="Share Feedback"
-      description="Send us a bug report, workflow idea, or UX note. Feedback is stored locally in this build so nothing gets lost while you iterate."
+      description="Send us a bug report, workflow idea, or UX note. Feedback is sent to CodeSight analytics in Supabase so admins can triage it."
       footer={
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[var(--cs-text-muted)]">
-          <span>Stored locally on this device for now.</span>
+          <span>Stored securely in Supabase for admin review.</span>
           <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-            Private by default
+            Admin triage
           </span>
         </div>
       }

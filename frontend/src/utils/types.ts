@@ -6,6 +6,8 @@ export interface User {
   displayName?: string | null;
   avatarUrl?: string | null;
   lastSeenAt?: string;
+  isAdmin?: boolean;
+  role?: string;
 }
 
 export type SupportedLanguage =

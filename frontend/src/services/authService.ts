@@ -30,7 +30,9 @@ const mapUser = (
     display_name: string | null;
     email: string;
     created_at: string;
+    is_admin: boolean;
     last_seen_at: string;
+    role: string;
     updated_at: string;
   } | null,
 ): User => ({
@@ -41,6 +43,8 @@ const mapUser = (
   displayName: profile?.display_name,
   avatarUrl: profile?.avatar_url,
   lastSeenAt: profile?.last_seen_at,
+  isAdmin: profile?.is_admin ?? false,
+  role: profile?.role ?? "user",
 });
 
 const resolveUserProfile = async (authUser: SupabaseAuthUser) => {
@@ -55,7 +59,7 @@ export const fetchProfile = async (authUser: SupabaseAuthUser) => {
   const { data, error } = await requireSupabase()
     .from("profiles")
     .select(
-      "id, email, display_name, avatar_url, created_at, updated_at, last_seen_at",
+      "id, email, display_name, avatar_url, created_at, updated_at, last_seen_at, is_admin, role",
     )
     .eq("id", authUser.id)
     .maybeSingle();

@@ -8,11 +8,11 @@ export default defineConfig({
   base: "./",
   server: {
     strictPort: true,
-    host: "127.0.0.1",
+    host: "0.0.0.0",
     port: rendererPort,
   },
   preview: {
-    host: "127.0.0.1",
+    host: "0.0.0.0",
     port: rendererPort + 100,
   },
   build: {
