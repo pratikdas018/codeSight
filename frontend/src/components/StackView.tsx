@@ -16,7 +16,7 @@ export const StackView = memo(
     const orderedFrames = useMemo(() => frames, [frames]);
 
     return (
-      <section className="rounded-[1.45rem] border border-[var(--cs-border)] bg-[rgba(10,12,10,0.82)] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.24)]">
+      <section className="min-w-0 rounded-[1.45rem] border border-[var(--cs-border)] bg-[rgba(10,12,10,0.82)] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.24)]">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">

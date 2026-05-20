@@ -33,23 +33,25 @@ export const HeapNode = ({
     initial={{ opacity: 0, y: 12 }}
     animate={{ opacity: 1, y: 0 }}
     className={clsx(
-      "overflow-hidden rounded-[1.3rem] border shadow-[0_16px_36px_rgba(0,0,0,0.24)]",
+      "min-w-0 overflow-hidden rounded-[1.3rem] border shadow-[0_16px_36px_rgba(0,0,0,0.24)]",
       diffTone[block.diffState],
     )}
   >
-    <div ref={registerNode?.(block.anchorId)} className="px-3 py-3">
+    <div ref={registerNode?.(block.anchorId)} className="min-w-0 px-3 py-3">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
         className="flex w-full items-start justify-between gap-3 text-left"
       >
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--cs-primary-bright)]">
               {block.address}
             </span>
-            <span className="text-sm font-semibold text-[var(--cs-text)]">{block.title}</span>
+            <span className="min-w-0 break-words text-sm font-semibold text-[var(--cs-text)]">
+              {block.title}
+            </span>
           </div>
           <div className="mt-1 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
             <span>{block.typeLabel}</span>
@@ -76,9 +78,9 @@ export const HeapNode = ({
                 <div
                   key={cell.id}
                   ref={registerNode?.(cell.anchorId)}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(8,10,8,0.94)] px-3 py-2"
+                  className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(8,10,8,0.94)] px-3 py-2"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="truncate font-mono text-xs text-[var(--cs-text)]">
                       {cell.label}
                     </div>
@@ -86,13 +88,13 @@ export const HeapNode = ({
                       {cell.typeLabel}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="ml-auto flex min-w-0 max-w-full flex-1 flex-col items-end gap-1 text-right">
                     {cell.pointerStatus ? (
                       <span className={clsx("font-mono text-[10px] uppercase tracking-[0.14em]", pointerTone[cell.pointerStatus])}>
                         {cell.pointerStatus}
                       </span>
                     ) : null}
-                    <span className="max-w-[12rem] truncate font-mono text-xs text-[var(--cs-text-muted)]">
+                    <span className="max-w-full break-words font-mono text-xs leading-5 text-[var(--cs-text-muted)]">
                       {cell.displayValue}
                     </span>
                   </div>

@@ -32,9 +32,9 @@ const SlotRow = ({
 }) => (
   <div
     ref={registerNode?.(slot.anchorId)}
-    className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(8,10,8,0.94)] px-3 py-2"
+    className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-[rgba(255,255,255,0.04)] bg-[rgba(8,10,8,0.94)] px-3 py-2"
   >
-    <div className="min-w-0">
+    <div className="min-w-0 flex-1">
       <div className="truncate font-mono text-xs text-[var(--cs-text)]">
         {slot.name}
       </div>
@@ -42,13 +42,13 @@ const SlotRow = ({
         {slot.typeLabel}
       </div>
     </div>
-    <div className="flex items-center gap-2">
+    <div className="ml-auto flex min-w-0 max-w-full flex-1 flex-col items-end gap-1 text-right">
       {slot.pointerStatus ? (
         <span className={clsx("font-mono text-[10px] uppercase tracking-[0.16em]", pointerTone[slot.pointerStatus])}>
           {slot.pointerStatus}
         </span>
       ) : null}
-      <span className="max-w-[11rem] truncate font-mono text-xs text-[var(--cs-text-muted)]">
+      <span className="max-w-full break-words font-mono text-xs leading-5 text-[var(--cs-text-muted)]">
         {slot.displayValue}
       </span>
     </div>
@@ -75,7 +75,7 @@ export const StackFrame = ({
       exit={{ opacity: 0, y: -10, scale: 0.98 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
       className={clsx(
-        "relative overflow-hidden rounded-[1.35rem] border p-3 shadow-[0_16px_36px_rgba(0,0,0,0.28)]",
+        "relative min-w-0 overflow-hidden rounded-[1.35rem] border p-3 shadow-[0_16px_36px_rgba(0,0,0,0.28)]",
         diffTone[frame.diffState],
         frame.isActive
           ? "ring-1 ring-[rgba(114,255,112,0.18)]"

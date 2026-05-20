@@ -56,6 +56,9 @@ interface OutputState {
   total: number;
 }
 
+const legacyFallbackExplanation =
+  "CodeSight is using a simplified fallback trace for this program.";
+
 const normalizeCode = (code: string) => code.replace(/\r\n/g, "\n");
 
 const getCodeLines = (code: string) => normalizeCode(code).split("\n");
@@ -271,6 +274,241 @@ const stripInlineComment = (line: string, language: SupportedLanguage) => {
 const stringifyValue = (value: number | string) =>
   typeof value === "number" ? String(value) : value;
 
+const formatSnippet = (value: string, maxLength = 72) =>
+  value.length > maxLength ? `${value.slice(0, maxLength - 3).trimEnd()}...` : value;
+
+const formatOutputSnippet = (value: string) => {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "blank output";
+  }
+
+  return `"${formatSnippet(trimmed, 52)}"`;
+};
+
+const buildVariableSummary = (
+  name: string,
+  nextValue: string,
+  previousValue?: string,
+) => {
+  if (typeof previousValue === "string" && previousValue !== nextValue) {
+    return `${name} changes from ${previousValue} to ${nextValue}`;
+  }
+
+  return `${name} is now ${nextValue}`;
+};
+
+const summarizeVariableChanges = (
+  previousVariables: Map<string, string>,
+  currentVariables: Map<string, string>,
+) => {
+  const changes: Array<{
+    name: string;
+    before?: string;
+    after: string;
+    kind: "added" | "updated";
+  }> = [];
+
+  for (const [name, value] of currentVariables.entries()) {
+    const previousValue = previousVariables.get(name);
+
+    if (typeof previousValue === "undefined") {
+      changes.push({
+        name,
+        after: value,
+        kind: "added",
+      });
+      continue;
+    }
+
+    if (previousValue !== value) {
+      changes.push({
+        name,
+        before: previousValue,
+        after: value,
+        kind: "updated",
+      });
+    }
+  }
+
+  return changes;
+};
+
+const describeConditionResult = (
+  expression: string,
+  variables: Map<string, string>,
+) => {
+  const result = tryEvaluateExpression(expression, variables);
+
+  if (result === "true" || result === "false") {
+    return result;
+  }
+
+  return null;
+};
+
+const buildFallbackExplanation = ({
+  codeLine,
+  language,
+  previousVariables,
+  currentVariables,
+  visibleOutput,
+  outputAdvanced,
+}: {
+  codeLine: string;
+  language: SupportedLanguage;
+  previousVariables: Map<string, string>;
+  currentVariables: Map<string, string>;
+  visibleOutput: string[];
+  outputAdvanced: boolean;
+}) => {
+  const normalizedLine = normalizeExpression(stripInlineComment(codeLine, language));
+  const changes = summarizeVariableChanges(previousVariables, currentVariables);
+  const primaryChange = changes[0];
+
+  if (!normalizedLine) {
+    return "This step advances the program without changing the tracked state.";
+  }
+
+  if (outputAdvanced) {
+    const latestOutput = visibleOutput[visibleOutput.length - 1];
+
+    return latestOutput
+      ? `This line sends ${formatOutputSnippet(latestOutput)} to the console so the visible output stays in sync with the code.`
+      : "This line writes to the console so the output panel updates.";
+  }
+
+  const returnMatch = normalizedLine.match(/^return\b(?:\s+(.+))?$/);
+  if (returnMatch) {
+    const expression = returnMatch[1]?.trim();
+
+    if (!expression) {
+      return "This line exits the current function and returns control to its caller.";
+    }
+
+    const resolvedValue = tryEvaluateExpression(expression, currentVariables);
+    return resolvedValue !== expression
+      ? `This line returns ${resolvedValue} from the current function so later code can use that result.`
+      : `This line returns the value of ${formatSnippet(expression)} from the current function.`;
+  }
+
+  const conditionalMatch = normalizedLine.match(/^(?:if|else if)\s*\((.+)\)$/);
+  if (conditionalMatch) {
+    const condition = formatSnippet(conditionalMatch[1].trim(), 58);
+    const outcome = describeConditionResult(conditionalMatch[1], currentVariables);
+
+    return outcome
+      ? `This branch checks whether ${condition} is ${outcome}; that result decides if the block will run.`
+      : `This branch checks whether ${condition}; the program uses that result to choose the next path.`;
+  }
+
+  const whileMatch = normalizedLine.match(/^while\s*\((.+)\)$/);
+  if (whileMatch) {
+    const condition = formatSnippet(whileMatch[1].trim(), 58);
+    const outcome = describeConditionResult(whileMatch[1], currentVariables);
+
+    return outcome
+      ? `This loop keeps running while ${condition} stays ${outcome}.`
+      : `This loop will repeat while ${condition} stays true.`;
+  }
+
+  const forMatch = normalizedLine.match(/^for\s*\((.*?);(.*?);(.*)\)$/);
+  if (forMatch) {
+    const initializer = normalizeExpression(forMatch[1]);
+    const condition = normalizeExpression(forMatch[2]);
+    const updater = normalizeExpression(forMatch[3]);
+    const parts = [
+      initializer ? `starts with ${formatSnippet(initializer, 28)}` : "",
+      condition ? `continues while ${formatSnippet(condition, 28)}` : "",
+      updater ? `updates with ${formatSnippet(updater, 28)}` : "",
+    ].filter(Boolean);
+
+    return parts.length > 0
+      ? `This loop ${parts.join(", ")} on each pass.`
+      : "This line controls a loop that repeats a block of work.";
+  }
+
+  const declarationMatch =
+    normalizedLine.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(.+)$/) ??
+    normalizedLine.match(
+      /^(?:(?:unsigned|signed|long|short|const|static|final)\s+)*(?:[A-Za-z_]\w*(?:::\w+)?(?:<[^>]+>)?(?:\s*[*&])?(?:\[\])?)\s+([A-Za-z_]\w*)\s*=\s*(.+)$/,
+    ) ??
+    (language === "python"
+      ? normalizedLine.match(/^([A-Za-z_]\w*)\s*=\s*(.+)$/)
+      : null);
+
+  if (declarationMatch) {
+    const name = declarationMatch[1] ?? "value";
+    const resolvedValue =
+      currentVariables.get(name) ??
+      tryEvaluateExpression(declarationMatch[2] ?? "", currentVariables);
+
+    return `This line creates ${name} and initializes it to ${formatSnippet(resolvedValue, 46)}.`;
+  }
+
+  const compoundMatch = normalizedLine.match(
+    /^([A-Za-z_$][\w$]*)\s*(\+=|-=|\*=|\/=)\s*(.+)$/,
+  );
+  if (compoundMatch) {
+    const name = compoundMatch[1];
+    const before = previousVariables.get(name);
+    const after = currentVariables.get(name) ?? tryEvaluateExpression(normalizedLine, currentVariables);
+    const operatorLabel =
+      compoundMatch[2] === "+="
+        ? "adds to"
+        : compoundMatch[2] === "-="
+          ? "subtracts from"
+          : compoundMatch[2] === "*="
+            ? "multiplies"
+            : "divides";
+
+    return typeof before === "string"
+      ? `This line ${operatorLabel} ${name}, changing it from ${before} to ${formatSnippet(after, 46)}.`
+      : `This line updates ${name} to ${formatSnippet(after, 46)} with a compound assignment.`;
+  }
+
+  const assignmentMatch = normalizedLine.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
+  if (assignmentMatch) {
+    const name = assignmentMatch[1];
+    const before = previousVariables.get(name);
+    const after =
+      currentVariables.get(name) ??
+      tryEvaluateExpression(assignmentMatch[2], currentVariables);
+
+    return typeof before === "string"
+      ? `This line updates ${name} from ${before} to ${formatSnippet(after, 46)}.`
+      : `This line stores ${formatSnippet(after, 46)} in ${name}.`;
+  }
+
+  const incrementMatch = normalizedLine.match(
+    /^(?:\+\+|--)?([A-Za-z_$][\w$]*)(?:\+\+|--)?$/,
+  );
+  if (incrementMatch) {
+    const name = incrementMatch[1];
+    const before = previousVariables.get(name);
+    const after = currentVariables.get(name);
+    const direction = normalizedLine.includes("--") ? "decrements" : "increments";
+
+    if (typeof before === "string" && typeof after === "string") {
+      return `This line ${direction} ${name} from ${before} to ${after}.`;
+    }
+
+    return `This line ${direction} ${name} by one.`;
+  }
+
+  const callMatch = normalizedLine.match(/^([A-Za-z_]\w*)\s*\((.*)\)$/);
+  if (callMatch) {
+    return `This line calls ${callMatch[1]} so the program can run that reusable piece of logic.`;
+  }
+
+  if (primaryChange) {
+    return `This line advances the state so ${buildVariableSummary(primaryChange.name, primaryChange.after, primaryChange.before)}.`;
+  }
+
+  return `This line executes ${formatSnippet(normalizedLine, 56)} to keep the program moving forward.`;
+};
+
 const tryEvaluateExpression = (
   expression: string,
   variables: Map<string, string>,
@@ -456,6 +694,9 @@ const buildFallbackFrames = (
       return;
     }
 
+    const previousVariables = new Map(variableMap);
+    const previousOutputCursor = outputState.cursor;
+
     applyVariableHeuristic(codeLine, language, variableMap);
     maybeAdvanceOutput(codeLine, language, outputLines, outputState);
 
@@ -465,7 +706,14 @@ const buildFallbackFrames = (
       lineNumber,
       codeLine: codeLine.trimEnd(),
       description: `Executing ${language} line ${lineNumber}.`,
-      explanation: "CodeSight is using a simplified fallback trace for this program.",
+      explanation: buildFallbackExplanation({
+        codeLine,
+        language,
+        previousVariables,
+        currentVariables: variableMap,
+        visibleOutput: outputLines.slice(0, outputState.cursor),
+        outputAdvanced: outputState.cursor > previousOutputCursor,
+      }),
       variables,
       stack: buildFallbackStack(variables),
       output: outputLines.slice(0, outputState.cursor),
@@ -571,6 +819,7 @@ const buildTraceIssue = (trace: ExecutionTrace) => {
 const enrichFrames = (
   frames: ExecutionStep[],
   codeLines: string[],
+  language: SupportedLanguage,
   source: string,
   quality: "full" | "fallback",
 ): ExecutionStep[] => {
@@ -592,6 +841,17 @@ const enrichFrames = (
       line: lineNumber,
       lineNumber,
       codeLine: step.codeLine ?? getCodeLine(codeLines, lineNumber),
+      explanation:
+        !step.explanation || step.explanation === legacyFallbackExplanation
+          ? buildFallbackExplanation({
+              codeLine: step.codeLine ?? getCodeLine(codeLines, lineNumber),
+              language,
+              previousVariables: buildVariableMap(previousVariables),
+              currentVariables: buildVariableMap(variables),
+              visibleOutput: stdout,
+              outputAdvanced: stdout.length > previousStdout.length,
+            })
+          : step.explanation,
       variables,
       stack,
       output: stdout,
@@ -634,6 +894,7 @@ export const materializeTraceFrames = ({
       ? buildFallbackFrames(code, language, trace.outputLines)
       : trace.steps,
     codeLines,
+    language,
     source,
     shouldFallback ? "fallback" : "full",
   );
