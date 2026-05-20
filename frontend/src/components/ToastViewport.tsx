@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import type { Notice } from "../utils/types";
@@ -12,16 +12,24 @@ export const ToastViewport = ({
   notice,
   onDismiss,
 }: ToastViewportProps) => {
+  const dismissRef = useRef(onDismiss);
+
+  useEffect(() => {
+    dismissRef.current = onDismiss;
+  }, [onDismiss]);
+
   useEffect(() => {
     if (!notice) {
       return undefined;
     }
 
-    const timeout = window.setTimeout(onDismiss, 4200);
+    const timeout = window.setTimeout(() => {
+      dismissRef.current();
+    }, 3000);
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [notice, onDismiss]);
+  }, [notice?.tone, notice?.message]);
 
   return (
     <AnimatePresence>
@@ -30,7 +38,7 @@ export const ToastViewport = ({
           key={`${notice.tone}-${notice.message}`}
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 16, scale: 0.98 }}
+          exit={{ opacity: 0, y: -12, scale: 0.98 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
           className="pointer-events-auto fixed right-4 top-24 z-[80] w-[min(460px,calc(100vw-2rem))]"
         >

@@ -39,7 +39,7 @@ type TooltipState =
     }
   | null;
 
-const previewTrackPadding = 14;
+const previewTrackPadding = 10;
 const markerPriority: Record<TimelineMarkerData["type"], number> = {
   error: 0,
   breakpoint: 1,
@@ -84,7 +84,6 @@ export const TimelineScrubber = ({
   );
   const progress =
     totalSteps <= 1 ? (totalSteps === 1 ? 1 : 0) : currentIndex / (totalSteps - 1);
-  const thumbLeft = previewTrackPadding + progress * railWidth;
 
   useEffect(() => {
     const element = railRef.current;
@@ -286,7 +285,8 @@ export const TimelineScrubber = ({
       ? analysis.previews[tooltipState.stepIndex] ?? null
       : null;
   const tooltipLeft =
-    tooltipState?.left ?? thumbLeft;
+    tooltipState?.left ??
+    previewTrackPadding + progress * railWidth;
 
   return (
     <div className="relative">
@@ -309,9 +309,9 @@ export const TimelineScrubber = ({
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
         className={clsx(
-          "relative rounded-[1.4rem] border border-[rgba(114,255,112,0.08)] bg-[rgba(6,10,6,0.88)] px-[14px] py-5 outline-none transition",
+          "relative rounded-full border border-[rgba(114,255,112,0.1)] bg-[linear-gradient(180deg,rgba(8,11,8,0.84),rgba(6,9,6,0.7))] px-[10px] py-3 outline-none transition",
           totalSteps > 0
-            ? "cursor-pointer focus-visible:border-[rgba(114,255,112,0.24)] focus-visible:shadow-[0_0_0_1px_rgba(114,255,112,0.14),0_0_0_6px_rgba(114,255,112,0.05)]"
+            ? "cursor-pointer focus-visible:border-[rgba(114,255,112,0.22)] focus-visible:shadow-[0_0_0_1px_rgba(114,255,112,0.12),0_0_0_5px_rgba(114,255,112,0.04)]"
             : "cursor-not-allowed opacity-60",
         )}
       >
@@ -322,19 +322,10 @@ export const TimelineScrubber = ({
           maxWidth={(railRef.current?.getBoundingClientRect().width ?? railWidth) + previewTrackPadding * 2}
         />
 
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
-            Interactive Timeline
-          </div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-muted)]">
-            {totalSteps > 0 ? `Step ${currentIndex + 1}/${totalSteps}` : "Awaiting trace"}
-          </div>
-        </div>
-
-        <div className="relative h-[76px]">
-          <div className="pointer-events-none absolute inset-x-[14px] top-[38px] h-[10px] rounded-full border border-[var(--cs-border)] bg-[rgba(3,6,3,0.96)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]" />
+        <div className="relative h-5">
+          <div className="pointer-events-none absolute inset-x-[10px] top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-[rgba(255,255,255,0.08)]" />
           <motion.div
-            className="pointer-events-none absolute left-[14px] top-[38px] h-[10px] rounded-full bg-[linear-gradient(90deg,rgba(0,255,65,0.12),rgba(114,255,112,0.5))] shadow-[0_0_24px_rgba(0,255,65,0.18)]"
+            className="pointer-events-none absolute left-[10px] top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-[linear-gradient(90deg,rgba(0,255,65,0.18),rgba(114,255,112,0.72))] shadow-[0_0_12px_rgba(0,255,65,0.1)]"
             initial={false}
             animate={{
               width: Math.max(progress * railWidth, 0),
@@ -362,34 +353,6 @@ export const TimelineScrubber = ({
             />
           ))}
 
-          <motion.div
-            className="pointer-events-none absolute top-[25px] z-20 h-[36px] w-[36px] -translate-x-1/2 rounded-full border border-[rgba(114,255,112,0.24)] bg-[radial-gradient(circle_at_30%_30%,rgba(223,255,229,0.95),rgba(114,255,112,0.78)_48%,rgba(7,10,7,0.88)_88%)] shadow-[0_0_28px_rgba(114,255,112,0.28)]"
-            initial={false}
-            animate={{
-              x: thumbLeft,
-              boxShadow: [
-                "0 0 12px rgba(114,255,112,0.16)",
-                "0 0 28px rgba(114,255,112,0.34)",
-                "0 0 12px rgba(114,255,112,0.16)",
-              ],
-              scale: isDragging ? 1.08 : 1,
-            }}
-            transition={{
-              x: { duration: isDragging ? 0.02 : 0.18, ease: "easeOut" },
-              boxShadow: {
-                duration: 1.2,
-                ease: "easeInOut",
-                repeat: Number.POSITIVE_INFINITY,
-              },
-              scale: { duration: 0.16, ease: "easeOut" },
-            }}
-          />
-
-          <div className="pointer-events-none absolute inset-x-[14px] bottom-0 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-[var(--cs-text-subtle)]">
-            <span>Start</span>
-            <span>Left/Right to step, Space to play</span>
-            <span>End</span>
-          </div>
         </div>
       </div>
     </div>

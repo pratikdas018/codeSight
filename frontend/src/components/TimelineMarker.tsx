@@ -20,8 +20,6 @@ export const TimelineMarker = ({
   onHoverEnd,
   onSelect,
 }: TimelineMarkerProps) => {
-  const topOffset = 8 + marker.lane * 14;
-
   return (
     <motion.button
       type="button"
@@ -56,14 +54,14 @@ export const TimelineMarker = ({
       }}
       style={{
         left,
-        top: topOffset,
+        top: "50%",
         backgroundColor: marker.color,
       }}
-      className="absolute z-20 h-3 w-3 -translate-x-1/2 rounded-full border border-black/40"
+      className="absolute z-20 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/20"
       aria-label={`${marker.shortLabel} at step ${marker.stepIndex + 1}, line ${marker.line}`}
     >
       {marker.aggregateCount && marker.aggregateCount > 1 ? (
-        <span className="absolute left-1/2 top-1/2 h-5 min-w-[20px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/70 px-1 text-[9px] leading-5 text-white">
+        <span className="absolute bottom-[calc(100%+6px)] left-1/2 min-w-[18px] -translate-x-1/2 rounded-full bg-black/78 px-1 text-center text-[8px] leading-4 text-white">
           {marker.aggregateCount}
         </span>
       ) : null}

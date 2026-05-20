@@ -42,9 +42,12 @@ export const FooterBar = ({
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.24, ease: "easeOut" }}
-    className="fixed inset-x-0 bottom-0 z-40 border-t border-[#1f1f1f] bg-[rgba(7,7,7,0.98)] backdrop-blur-xl"
+    className="fixed inset-x-0 z-40 px-2 pb-2 sm:px-3 sm:pb-3"
+    style={{
+      bottom: "max(env(safe-area-inset-bottom, 0px), 8px)",
+    }}
   >
-    <div className="mx-auto flex min-h-10 max-w-[1900px] items-center justify-between gap-3 px-3 sm:px-4 lg:px-6">
+    <div className="mx-auto flex min-h-10 max-w-[1900px] items-center justify-between gap-3 rounded-2xl border border-[#1f1f1f] bg-[rgba(7,7,7,0.98)] px-3 py-2 shadow-[0_18px_34px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:px-4 lg:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
         <StatusIndicator
           icon="code"

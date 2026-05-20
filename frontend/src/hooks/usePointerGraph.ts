@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerLinkModel } from "../memory/types";
 
 export interface RenderedPointerEdge extends PointerLinkModel {
@@ -11,17 +11,49 @@ const clamp = (value: number, min: number, max: number) =>
 export const usePointerGraph = (pointerLinks: PointerLinkModel[]) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const registryRef = useRef(new Map<string, HTMLElement>());
+  const callbackRegistryRef = useRef(
+    new Map<string, (element: HTMLElement | null) => void>(),
+  );
+  const observerRef = useRef<ResizeObserver | null>(null);
   const [layoutVersion, setLayoutVersion] = useState(0);
 
-  const registerNode = (id: string) => (element: HTMLElement | null) => {
-    if (element) {
-      registryRef.current.set(id, element);
-    } else {
-      registryRef.current.delete(id);
-    }
-
+  const bumpLayoutVersion = useCallback(() => {
     setLayoutVersion((current) => current + 1);
-  };
+  }, []);
+
+  const registerNode = useCallback(
+    (id: string) => {
+      const existingCallback = callbackRegistryRef.current.get(id);
+      if (existingCallback) {
+        return existingCallback;
+      }
+
+      const callback = (element: HTMLElement | null) => {
+        const previousElement = registryRef.current.get(id);
+        if (previousElement === element) {
+          return;
+        }
+
+        if (previousElement) {
+          observerRef.current?.unobserve(previousElement);
+          registryRef.current.delete(id);
+        }
+
+        if (element) {
+          registryRef.current.set(id, element);
+          observerRef.current?.observe(element);
+        } else {
+          callbackRegistryRef.current.delete(id);
+        }
+
+        bumpLayoutVersion();
+      };
+
+      callbackRegistryRef.current.set(id, callback);
+      return callback;
+    },
+    [bumpLayoutVersion],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -30,8 +62,9 @@ export const usePointerGraph = (pointerLinks: PointerLinkModel[]) => {
     }
 
     const observer = new ResizeObserver(() => {
-      setLayoutVersion((current) => current + 1);
+      bumpLayoutVersion();
     });
+    observerRef.current = observer;
 
     observer.observe(container);
     for (const element of registryRef.current.values()) {
@@ -39,18 +72,19 @@ export const usePointerGraph = (pointerLinks: PointerLinkModel[]) => {
     }
 
     const handleWindowChange = () => {
-      setLayoutVersion((current) => current + 1);
+      bumpLayoutVersion();
     };
 
     window.addEventListener("resize", handleWindowChange);
     container.addEventListener("scroll", handleWindowChange, { passive: true });
 
     return () => {
+      observerRef.current = null;
       observer.disconnect();
       window.removeEventListener("resize", handleWindowChange);
       container.removeEventListener("scroll", handleWindowChange);
     };
-  }, [layoutVersion, pointerLinks.length]);
+  }, [bumpLayoutVersion]);
 
   const edges = useMemo<RenderedPointerEdge[]>(() => {
     const container = containerRef.current;

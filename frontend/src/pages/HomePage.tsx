@@ -1149,46 +1149,60 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       base: "vs-dark",
       inherit: true,
       rules: [
-        { token: "comment", foreground: "5F7562", fontStyle: "italic" },
-        { token: "keyword", foreground: "72FF70" },
-        { token: "string", foreground: "B6FFD0" },
-        { token: "number", foreground: "9EF58A" },
-        { token: "type.identifier", foreground: "D9FFE2" },
+        { token: "comment", foreground: "6A9955", fontStyle: "italic" },
+        { token: "keyword", foreground: "C586C0" },
+        { token: "string", foreground: "CE9178" },
+        { token: "number", foreground: "B5CEA8" },
+        { token: "type.identifier", foreground: "4EC9B0" },
+        { token: "identifier", foreground: "9CDCFE" },
+        { token: "function", foreground: "DCDCAA" },
+        { token: "delimiter", foreground: "D4D4D4" },
       ],
       colors: {
-        "editor.background": "#090c09",
-        "editorGutter.background": "#090c09",
-        "editorLineNumber.foreground": "#4F6353",
-        "editorLineNumber.activeForeground": "#E7FFE8",
-        "editor.selectionBackground": "#17331C",
-        "editor.inactiveSelectionBackground": "#101A12",
-        "editor.lineHighlightBackground": "#0F140F",
-        "editorCursor.foreground": "#72FF70",
-        "editorIndentGuide.background1": "#17221A",
-        "editorIndentGuide.activeBackground1": "#28432F",
+        "editor.background": "#1E1E1E",
+        "editor.foreground": "#D4D4D4",
+        "editorGutter.background": "#1E1E1E",
+        "editorLineNumber.foreground": "#858585",
+        "editorLineNumber.activeForeground": "#C6C6C6",
+        "editor.selectionBackground": "#264F78",
+        "editor.inactiveSelectionBackground": "#3A3D41",
+        "editor.lineHighlightBackground": "#2A2D2E",
+        "editorCursor.foreground": "#AEAFAD",
+        "editorWhitespace.foreground": "#3B3B3B",
+        "editorIndentGuide.background1": "#404040",
+        "editorIndentGuide.activeBackground1": "#707070",
+        "editorBracketMatch.background": "#0064001A",
+        "editorBracketMatch.border": "#888888",
       },
     });
     monaco.editor.defineTheme("codesight-graphite", {
       base: "vs-dark",
       inherit: true,
       rules: [
-        { token: "comment", foreground: "6E8171", fontStyle: "italic" },
-        { token: "keyword", foreground: "7CFF7A" },
-        { token: "string", foreground: "C6FFD9" },
-        { token: "number", foreground: "AFF599" },
-        { token: "type.identifier", foreground: "F0FFF0" },
+        { token: "comment", foreground: "608B4E", fontStyle: "italic" },
+        { token: "keyword", foreground: "C586C0" },
+        { token: "string", foreground: "CE9178" },
+        { token: "number", foreground: "B5CEA8" },
+        { token: "type.identifier", foreground: "4EC9B0" },
+        { token: "identifier", foreground: "9CDCFE" },
+        { token: "function", foreground: "DCDCAA" },
+        { token: "delimiter", foreground: "CCCCCC" },
       ],
       colors: {
-        "editor.background": "#0b0f0b",
-        "editorGutter.background": "#0b0f0b",
-        "editorLineNumber.foreground": "#5B6C5F",
-        "editorLineNumber.activeForeground": "#ECFFE9",
-        "editor.selectionBackground": "#1A2B1E",
-        "editor.inactiveSelectionBackground": "#131813",
-        "editor.lineHighlightBackground": "#101510",
-        "editorCursor.foreground": "#8DFF8A",
-        "editorIndentGuide.background1": "#1A221B",
-        "editorIndentGuide.activeBackground1": "#33553B",
+        "editor.background": "#181818",
+        "editor.foreground": "#CCCCCC",
+        "editorGutter.background": "#181818",
+        "editorLineNumber.foreground": "#6E7681",
+        "editorLineNumber.activeForeground": "#D4D4D4",
+        "editor.selectionBackground": "#264F78",
+        "editor.inactiveSelectionBackground": "#31353A",
+        "editor.lineHighlightBackground": "#232323",
+        "editorCursor.foreground": "#CCCCCC",
+        "editorWhitespace.foreground": "#333333",
+        "editorIndentGuide.background1": "#3A3A3A",
+        "editorIndentGuide.activeBackground1": "#666666",
+        "editorBracketMatch.background": "#00640014",
+        "editorBracketMatch.border": "#7D7D7D",
       },
     });
     monaco.editor.setTheme(monacoThemeMap[themeMode]);
@@ -2073,7 +2087,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1900px] px-3 pb-48 pt-4 sm:px-4 lg:px-6">
+      <div className="mx-auto max-w-[1900px] px-3 pb-24 pt-4 sm:px-4 lg:px-6">
         <div
           className={clsx(
             "grid gap-4",
@@ -2219,11 +2233,27 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                   {languageLabels[language]}
                 </div>
               </div>
+              <PlaybackDock
+                steps={playbackFrames}
+                currentStepIndex={currentStepIndex}
+                activeLine={activeLineNumber ?? undefined}
+                currentFunctionName={currentFunctionName}
+                isPlaying={isPlaying}
+                playbackRate={playbackRate}
+                stepSummary={playbackSummary}
+                traceError={trace.error || undefined}
+                onPlaybackRateChange={setPlaybackRate}
+                onStepScrub={(nextIndex) => {
+                  jumpToPlaybackIndex(nextIndex, "visualizer", "flow");
+                }}
+                onPrevious={handlePrevious}
+                onNext={handleNext}
+                onTogglePlayback={handleTogglePlayback}
+                onPausePlayback={stopPlayback}
+                onReset={handleReset}
+              />
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1">
-                  <div className="mb-1 text-xs uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
-                    Desktop workspace security
-                  </div>
                   <input
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
@@ -2311,7 +2341,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
               </div>
             ) : null}
 
-            <div className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(114,255,112,0.06),transparent_24%),linear-gradient(180deg,rgba(12,15,12,0.88),rgba(8,10,8,0.98))]">
+            <div className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,#1e1e1e,#181818)]">
               <Editor
                 height="100%"
                 defaultLanguage={monacoLanguageMap[language]}
@@ -2321,11 +2351,11 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 onMount={handleEditorMount}
                 theme={monacoThemeMap[themeMode]}
                 options={{
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "'Cascadia Code', Consolas, 'JetBrains Mono', monospace",
                   fontSize: 15,
                   minimap: { enabled: true, scale: 1, showSlider: "mouseover" },
                   scrollBeyondLastLine: false,
-                  lineNumbersMinChars: 3,
+                  lineNumbersMinChars: 4,
                   padding: { top: 18, bottom: 18 },
                   roundedSelection: false,
                   wordWrap: "on",
@@ -2333,6 +2363,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                   renderLineHighlight: "all",
                   smoothScrolling: true,
                   cursorBlinking: "smooth",
+                  cursorSmoothCaretAnimation: "on",
+                  renderWhitespace: "selection",
+                  bracketPairColorization: { enabled: true },
                 }}
               />
               <div className="editor-focus-overlay" aria-hidden="true" />
@@ -2521,25 +2554,6 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         initialEmail={user?.email ?? ""}
         isSubmitting={isSubmittingFeedback}
         onSubmit={handleFeedbackSubmit}
-      />
-      <PlaybackDock
-        steps={playbackFrames}
-        currentStepIndex={currentStepIndex}
-        activeLine={activeLineNumber ?? undefined}
-        currentFunctionName={currentFunctionName}
-        isPlaying={isPlaying}
-        playbackRate={playbackRate}
-        stepSummary={playbackSummary}
-        traceError={trace.error || undefined}
-        onPlaybackRateChange={setPlaybackRate}
-        onStepScrub={(nextIndex) => {
-          jumpToPlaybackIndex(nextIndex, "visualizer", "flow");
-        }}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
-        onTogglePlayback={handleTogglePlayback}
-        onPausePlayback={stopPlayback}
-        onReset={handleReset}
       />
       <FooterBar
         languageLabel={languageLabels[language]}
