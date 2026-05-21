@@ -140,6 +140,16 @@ export const VariableTransition = ({ variable }: VariableTransitionProps) => {
         {variable.currentValue}
       </motion.div>
 
+      {variable.previousValue &&
+      variable.change !== "unchanged" &&
+      variable.change !== "added" ? (
+        <div className="mt-2 flex items-center gap-2 font-mono text-[11px] text-[var(--cs-text-muted)]">
+          <span className="truncate">{variable.previousValue}</span>
+          <span className="text-[var(--cs-primary-bright)]">-&gt;</span>
+          <span className="truncate text-[var(--cs-text)]">{variable.currentValue}</span>
+        </div>
+      ) : null}
+
       <AnimatePresence initial={false}>
         {variable.previousValue &&
         variable.change !== "unchanged" &&

@@ -39,6 +39,43 @@ export interface MemoryChange {
   after?: string;
 }
 
+export interface ChangedVariable {
+  name: string;
+  scope: string;
+  before?: string;
+  after?: string;
+}
+
+export type TraceEventType =
+  | "ASSIGNMENT"
+  | "VARIABLE_DECLARATION"
+  | "VARIABLE_UPDATE"
+  | "LOOP_ENTER"
+  | "LOOP_ITERATION"
+  | "LOOP_INCREMENT"
+  | "CONDITION_TRUE"
+  | "CONDITION_FALSE"
+  | "FUNCTION_CALL"
+  | "FUNCTION_RETURN"
+  | "ARRAY_READ"
+  | "ARRAY_WRITE"
+  | "VECTOR_READ"
+  | "VECTOR_WRITE"
+  | "STACK_PUSH"
+  | "STACK_POP"
+  | "QUEUE_PUSH"
+  | "QUEUE_POP"
+  | "RECURSION_ENTER"
+  | "RECURSION_RETURN"
+  | "MEMORY_ALLOCATE"
+  | "MEMORY_FREE"
+  | "POINTER_UPDATE"
+  | "STL_CONTAINER_MUTATION"
+  | "GRAPH_TRAVERSAL"
+  | "TREE_TRAVERSAL"
+  | "OUTPUT"
+  | "STEP";
+
 export type TraceFrameQuality = "full" | "fallback" | "empty";
 
 export interface TraceSummary {
@@ -176,15 +213,22 @@ export interface ExecutionLogEntry {
 }
 
 export interface ExecutionStep {
+  frameId?: string;
+  eventType?: TraceEventType;
   line: number;
+  lineNumber?: number;
+  codeLine?: string;
   description: string;
   explanation?: string;
   variables: VariableSnapshot[] | Record<string, unknown>;
+  variablesBefore?: VariableSnapshot[];
+  variablesAfter?: VariableSnapshot[];
+  changedVariables?: ChangedVariable[];
   stack?: StackFrameSnapshot[];
+  stackFrames?: StackFrameSnapshot[];
   output: string[];
-  lineNumber?: number;
-  codeLine?: string;
   heap?: HeapSnapshotNode[];
+  heapState?: HeapSnapshotNode[];
   stdout?: string[];
   timestamp?: number;
   functionCalls?: FunctionCallSnapshot[];

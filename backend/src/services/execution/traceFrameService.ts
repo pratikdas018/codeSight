@@ -1,4 +1,5 @@
 import type {
+  ChangedVariable,
   ExecutionStep,
   ExecutionTrace,
   FunctionCallSnapshot,
@@ -7,6 +8,7 @@ import type {
   ScopeSnapshot,
   StackFrameSnapshot,
   SupportedLanguage,
+  TraceEventType,
   VariableSnapshot,
 } from "../../types/execution";
 import type { StructuredLogger } from "../../logging/logger";
@@ -192,6 +194,35 @@ const buildMemoryChanges = (
       kind: "stdout",
       before: previousStdout.join("\n"),
       after: currentStdout.join("\n"),
+    });
+  }
+
+  return changes;
+};
+
+const buildChangedVariables = (
+  previousVariables: VariableSnapshot[],
+  currentVariables: VariableSnapshot[],
+): ChangedVariable[] => {
+  const previousMap = buildVariableMap(previousVariables);
+  const currentMap = buildVariableMap(currentVariables);
+  const keys = new Set([...previousMap.keys(), ...currentMap.keys()]);
+  const changes: ChangedVariable[] = [];
+
+  for (const key of keys) {
+    const before = previousMap.get(key);
+    const after = currentMap.get(key);
+
+    if (before === after) {
+      continue;
+    }
+
+    const [scope, name] = key.split(":");
+    changes.push({
+      name: name ?? key,
+      scope: scope ?? "global",
+      before,
+      after,
     });
   }
 
@@ -832,12 +863,27 @@ const enrichFrames = (
     const stack = step.stack && step.stack.length > 0 ? step.stack : buildFallbackStack(variables);
     const stdout = step.stdout ?? step.output ?? [];
     const lineNumber = step.lineNumber ?? step.line;
+    const heap = step.heapState && step.heapState.length > 0
+      ? step.heapState
+      : step.heap && step.heap.length > 0
+        ? step.heap
+        : buildHeap(variables);
+    const changedVariables =
+      step.changedVariables && step.changedVariables.length > 0
+        ? step.changedVariables
+        : buildChangedVariables(previousVariables, variables);
+    const memoryChanges =
+      step.memoryChanges && step.memoryChanges.length > 0
+        ? step.memoryChanges
+        : buildMemoryChanges(previousVariables, variables, previousStdout, stdout);
     const activeScopes =
       step.activeScopes && step.activeScopes.length > 0
         ? step.activeScopes
         : groupVariablesByScope(variables);
     const nextStep: ExecutionStep = {
       ...step,
+      frameId: step.frameId ?? `frame-${index + 1}`,
+      eventType: step.eventType ?? ("STEP" as TraceEventType),
       line: lineNumber,
       lineNumber,
       codeLine: step.codeLine ?? getCodeLine(codeLines, lineNumber),
@@ -853,7 +899,11 @@ const enrichFrames = (
             })
           : step.explanation,
       variables,
+      variablesBefore: step.variablesBefore ?? previousVariables,
+      variablesAfter: step.variablesAfter ?? variables,
+      changedVariables,
       stack,
+      stackFrames: step.stackFrames ?? stack,
       output: stdout,
       stdout,
       timestamp: step.timestamp ?? index,
@@ -862,11 +912,9 @@ const enrichFrames = (
           ? step.functionCalls
           : buildFunctionCalls(stack, previousStack, lineNumber),
       activeScopes,
-      heap: step.heap && step.heap.length > 0 ? step.heap : buildHeap(variables),
-      memoryChanges:
-        step.memoryChanges && step.memoryChanges.length > 0
-          ? step.memoryChanges
-          : buildMemoryChanges(previousVariables, variables, previousStdout, stdout),
+      heap,
+      heapState: step.heapState ?? heap,
+      memoryChanges,
       traceSource: step.traceSource ?? source,
       traceQuality: step.traceQuality ?? quality,
     };

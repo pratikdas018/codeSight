@@ -1,7 +1,10 @@
 import type {
+  ChangedVariable,
   ExecutionStep,
+  HeapSnapshotNode,
   StackFrameSnapshot,
   SupportedLanguage,
+  TraceEventType,
   VariableSnapshot,
 } from "../../types/execution";
 import type { StructuredLogger } from "../../logging/logger";
@@ -37,6 +40,12 @@ interface ExecutionContext {
   values: Map<string, RuntimeValue>;
   aliases: Map<string, AliasTarget>;
   parent: ExecutionContext | null;
+}
+
+interface SnapshotBundle {
+  variables: VariableSnapshot[];
+  stackFrames: StackFrameSnapshot[];
+  heapState: HeapSnapshotNode[];
 }
 
 const maximumLoopIterations = 400;
@@ -214,6 +223,8 @@ class CompiledTraceInterpreter {
   private readonly finalOutputLines: string[];
   private revealedOutputCount = 0;
   private loopIterations = 0;
+  private frameCounter = 0;
+  private activeLine = 1;
 
   constructor(
     code: string,
@@ -270,6 +281,7 @@ class CompiledTraceInterpreter {
     for (let index = 0; index < lines.length; index += 1) {
       const current = lines[index];
       const trimmed = current.content.trim();
+      this.activeLine = current.line;
 
       if (shouldSkipLine(trimmed)) {
         continue;
@@ -287,12 +299,14 @@ class CompiledTraceInterpreter {
           trimmed.slice(trimmed.indexOf("(") + 1, trimmed.lastIndexOf(")")),
           context,
         );
-        this.capture(
-          current.line,
-          "Checked a condition to choose the next path.",
-          `The condition evaluated to ${condition}, so the program ${condition ? "entered" : "skipped"} this branch.`,
+        this.captureEvent({
+          line: current.line,
+          codeLine: current.content,
+          description: `Condition ${condition ? "passed" : "failed"}.`,
+          explanation: `Condition ${trimmed.slice(trimmed.indexOf("(") + 1, trimmed.lastIndexOf(")")).trim()} evaluated to ${condition}. The program ${condition ? "enters" : "skips"} this branch.`,
+          eventType: condition ? "CONDITION_TRUE" : "CONDITION_FALSE",
           context,
-        );
+        });
 
         if (condition) {
           const { bodyLines, nextIndex } = this.extractConditionalBody(lines, index);
@@ -390,40 +404,58 @@ class CompiledTraceInterpreter {
 
     if (initializer) {
       this.executeSyntheticStatement(initializer, headerLine.line, context);
+      this.captureEvent({
+        line: headerLine.line,
+        codeLine: headerLine.content,
+        description: "Loop initialization completed.",
+        explanation: `Loop setup ran ${initializer.replace(/\s+/g, " ").trim()} before the first condition check.`,
+        eventType: "LOOP_ENTER",
+        context,
+      });
     }
 
     while (true) {
       this.loopIterations += 1;
 
       if (this.loopIterations > maximumLoopIterations) {
-        this.capture(
-          headerLine.line,
-          "Stopped the loop to keep the walkthrough readable.",
-          "The loop hit the safety limit for the educational walkthrough.",
+        this.captureEvent({
+          line: headerLine.line,
+          codeLine: headerLine.content,
+          description: "Stopped tracing this loop at the safety limit.",
+          explanation: "The walkthrough reached the loop safety limit, so CodeSight stopped expanding additional iterations.",
+          eventType: "LOOP_ITERATION",
           context,
-        );
+        });
         break;
       }
 
       const passed = condition ? this.evaluateCondition(condition, context) : true;
 
-      this.capture(
-        headerLine.line,
-        "Checked a loop and prepared the next repetition.",
-        passed
-          ? "The loop condition is true, so the program runs the body again."
-          : "The loop condition is false, so the program exits the loop.",
+      this.captureEvent({
+        line: headerLine.line,
+        codeLine: headerLine.content,
+        description: `Loop condition evaluated to ${passed}.`,
+        explanation: `Loop condition ${condition || "true"} evaluated to ${passed}. The ${passed ? "next iteration begins" : "loop exits"} here.`,
+        eventType: passed ? "CONDITION_TRUE" : "CONDITION_FALSE",
         context,
-      );
+      });
 
       if (!passed) {
         break;
       }
 
+      this.captureEvent({
+        line: headerLine.line,
+        codeLine: headerLine.content,
+        description: "Starting a new loop iteration.",
+        explanation: "Control entered the loop body for the next iteration.",
+        eventType: "LOOP_ITERATION",
+        context,
+      });
       this.executeLines(bodyLines, context);
 
       if (update) {
-        this.applyUpdate(update, context);
+        this.applyUpdate(update, headerLine.line, headerLine.content, context);
       }
     }
   }
@@ -434,15 +466,17 @@ class CompiledTraceInterpreter {
     if (trimmed.startsWith("return")) {
       const returnExpression = normalizeStatement(trimmed.replace(/^return/, ""));
       const resolvedValue = returnExpression
-        ? this.evaluateExpression(returnExpression, context)
+        ? this.evaluateExpression(returnExpression, context, line.line)
         : null;
 
-      this.capture(
-        line.line,
-        "Returned a value from the current function.",
-        "This line finishes the current function and hands a result back to the caller.",
+      this.captureEvent({
+        line: line.line,
+        codeLine: line.content,
+        description: "Returned from the current function.",
+        explanation: `${context.scopeName} returns ${serializeValue(resolvedValue)} to its caller.`,
+        eventType: this.isRecursiveContext(context) ? "RECURSION_RETURN" : "FUNCTION_RETURN",
         context,
-      );
+      });
       throw new ReturnSignal(resolvedValue);
     }
 
@@ -470,12 +504,14 @@ class CompiledTraceInterpreter {
       return;
     }
 
-    this.capture(
-      line.line,
-      `Executed a ${this.language === "java" ? "Java" : this.language === "cpp" ? "C++" : "C"} line.`,
-      "This line is part of the program flow. Follow the variables and arrays to see what it changes.",
+    this.captureEvent({
+      line: line.line,
+      codeLine: line.content,
+      description: `Executed ${normalizeStatement(line.content)}.`,
+      explanation: "This step advanced control flow without a tracked variable mutation.",
+      eventType: "STEP",
       context,
-    );
+    });
   }
 
   private executeSyntheticStatement(statement: string, line: number, context: ExecutionContext) {
@@ -492,19 +528,22 @@ class CompiledTraceInterpreter {
     );
 
     if (arrayLiteralMatch) {
+      const before = this.snapshotContext(context);
       const values = splitTopLevel(arrayLiteralMatch[2], ",").map((item) => {
-        const resolved = this.evaluateExpression(item, context);
+        const resolved = this.evaluateExpression(item, context, line);
         return typeof resolved === "number" || typeof resolved === "string"
           ? resolved
           : null;
       });
       this.setValue(arrayLiteralMatch[1], values, context);
-      this.capture(
+      this.captureEvent({
         line,
-        `Created array ${arrayLiteralMatch[1]}.`,
-        "This line builds an array with the starting values the learner sees before the algorithm begins.",
+        description: `Declared array ${arrayLiteralMatch[1]}.`,
+        explanation: `Array ${arrayLiteralMatch[1]} was initialized with ${serializeValue(values)}.`,
+        eventType: "VARIABLE_DECLARATION",
         context,
-      );
+        before,
+      });
       return true;
     }
 
@@ -519,20 +558,23 @@ class CompiledTraceInterpreter {
       !statement.includes("while(")
     ) {
       const sizeExpression = sizedArrayMatch[2] || sizedArrayMatch[3];
-      const sizeValue = this.evaluateExpression(sizeExpression, context);
+      const sizeValue = this.evaluateExpression(sizeExpression, context, line);
 
       if (typeof sizeValue === "number" && Number.isFinite(sizeValue)) {
+        const before = this.snapshotContext(context);
         this.setValue(
           sizedArrayMatch[1],
           Array.from({ length: Math.max(0, sizeValue) }, () => null),
           context,
         );
-        this.capture(
+        this.captureEvent({
           line,
-          `Reserved space for array ${sizedArrayMatch[1]}.`,
-          "This line creates an empty array structure that will be filled as the algorithm runs.",
+          description: `Allocated storage for ${sizedArrayMatch[1]}.`,
+          explanation: `Allocated ${Math.max(0, sizeValue)} slots for ${sizedArrayMatch[1]}.`,
+          eventType: "MEMORY_ALLOCATE",
           context,
-        );
+          before,
+        });
         return true;
       }
     }
@@ -542,16 +584,19 @@ class CompiledTraceInterpreter {
     );
 
     if (scalarDeclarationMatch) {
+      const before = this.snapshotContext(context);
       const value = scalarDeclarationMatch[2]
-        ? this.evaluateExpression(scalarDeclarationMatch[2], context)
+        ? this.evaluateExpression(scalarDeclarationMatch[2], context, line)
         : null;
       this.setValue(scalarDeclarationMatch[1], value, context);
-      this.capture(
+      this.captureEvent({
         line,
-        `Updated ${scalarDeclarationMatch[1]} in memory.`,
-        "This line stores a value so the next steps can reuse it.",
+        description: `Declared ${scalarDeclarationMatch[1]}.`,
+        explanation: `Variable ${scalarDeclarationMatch[1]} was created with value ${serializeValue(value)}.`,
+        eventType: "VARIABLE_DECLARATION",
         context,
-      );
+        before,
+      });
       return true;
     }
 
@@ -566,8 +611,9 @@ class CompiledTraceInterpreter {
     }
 
     const arrayName = match[1];
-    const targetIndex = this.evaluateExpression(match[2], context);
-    const nextValue = this.evaluateExpression(match[3], context);
+    const before = this.snapshotContext(context);
+    const targetIndex = this.evaluateExpression(match[2], context, line);
+    const nextValue = this.evaluateExpression(match[3], context, line);
     const resolvedArray = this.getValue(arrayName, context);
 
     if (!Array.isArray(resolvedArray) || typeof targetIndex !== "number") {
@@ -582,12 +628,14 @@ class CompiledTraceInterpreter {
     this.setValue(arrayName, updatedArray, context);
 
     const sourceSummary = match[3].replace(/\s+/g, " ").trim();
-    this.capture(
+    this.captureEvent({
       line,
-      `Placed a value into ${arrayName}[${targetIndex}].`,
-      `This step updates index ${targetIndex} of ${arrayName} using ${sourceSummary}. Watch the token move or change in the array visualizer.`,
+      description: `Wrote ${arrayName}[${targetIndex}].`,
+      explanation: `${arrayName}[${targetIndex}] changed from ${serializeValue(resolvedArray[targetIndex] ?? null)} to ${serializeValue(nextValue)} using ${sourceSummary}.`,
+      eventType: "ARRAY_WRITE",
       context,
-    );
+      before,
+    });
     return true;
   }
 
@@ -599,7 +647,9 @@ class CompiledTraceInterpreter {
     }
 
     const [, name, operator, rawValue] = match;
-    const resolvedValue = this.evaluateExpression(rawValue, context);
+    const before = this.snapshotContext(context);
+    const previousValue = this.getValue(name, context);
+    const resolvedValue = this.evaluateExpression(rawValue, context, line);
 
     if (operator === "=") {
       this.setValue(name, resolvedValue, context);
@@ -620,36 +670,59 @@ class CompiledTraceInterpreter {
       }
     }
 
-    this.capture(
+    this.captureEvent({
       line,
-      `Updated ${name} in memory.`,
-      "This line changes a stored value that later steps may use.",
+      description: `${operator === "=" ? "Assigned" : "Updated"} ${name}.`,
+      explanation:
+        operator === "="
+          ? `${name} changed from ${serializeValue(previousValue)} to ${serializeValue(this.getValue(name, context))}.`
+          : `${name} applied ${operator} ${rawValue.trim()} and moved from ${serializeValue(previousValue)} to ${serializeValue(this.getValue(name, context))}.`,
+      eventType: operator === "=" ? "ASSIGNMENT" : "VARIABLE_UPDATE",
       context,
-    );
+      before,
+    });
     return true;
   }
 
   private handleFunctionCall(statement: string, line: number, context: ExecutionContext) {
-    const match = statement.match(/^(?:[A-Za-z_]\w*\s*=\s*)?([A-Za-z_]\w*)\((.*)\);?$/);
+    const match = statement.match(/^(?:([A-Za-z_]\w*)\s*=\s*)?([A-Za-z_]\w*)\((.*)\);?$/);
 
     if (!match) {
       return false;
     }
 
-    const functionName = match[1];
+    const assignmentTarget = match[1];
+    const functionName = match[2];
 
     if (!this.functions.has(functionName)) {
       return false;
     }
 
-    const args = splitTopLevel(match[2], ",");
-    this.capture(
+    const args = splitTopLevel(match[3], ",");
+    this.captureEvent({
       line,
-      `Called ${functionName}().`,
-      "The program entered a helper function, so the next steps show what happens inside it.",
+      description: `Calling ${functionName}().`,
+      explanation: `Control moves into ${functionName}(${args.join(", ")}) so the helper can compute its result.`,
+      eventType: this.isRecursiveCall(functionName, context)
+        ? "RECURSION_ENTER"
+        : "FUNCTION_CALL",
       context,
-    );
-    this.executeFunction(functionName, args, context, line);
+    });
+    const returnValue = this.executeFunction(functionName, args, context, line);
+
+    if (assignmentTarget) {
+      const before = this.snapshotContext(context);
+      const previousValue = this.getValue(assignmentTarget, context);
+      this.setValue(assignmentTarget, returnValue, context);
+      this.captureEvent({
+        line,
+        description: `Stored ${functionName}() return value in ${assignmentTarget}.`,
+        explanation: `${assignmentTarget} changed from ${serializeValue(previousValue)} to ${serializeValue(returnValue)} after ${functionName}() returned.`,
+        eventType: "ASSIGNMENT",
+        context,
+        before,
+      });
+    }
     return true;
   }
 
@@ -689,7 +762,16 @@ class CompiledTraceInterpreter {
         }
       }
 
-      localContext.values.set(param.name, this.evaluateExpression(argExpression, parentContext));
+      localContext.values.set(param.name, this.evaluateExpression(argExpression, parentContext, callLine ?? definition.line));
+    });
+
+    this.captureEvent({
+      line: callLine ?? definition.line,
+      codeLine: callLine === null ? `${name}()` : undefined,
+      description: `Entered ${name}().`,
+      explanation: `${name}() started with ${definition.params.length} argument${definition.params.length === 1 ? "" : "s"} in a new stack frame.`,
+      eventType: this.isRecursiveContext(localContext) ? "RECURSION_ENTER" : "FUNCTION_CALL",
+      context: localContext,
     });
 
     try {
@@ -702,12 +784,13 @@ class CompiledTraceInterpreter {
       throw error;
     } finally {
       if (callLine !== null) {
-        this.capture(
-          callLine,
-          `${name}() finished.`,
-          "The helper function completed, so control returns to the calling code.",
-          parentContext,
-        );
+        this.captureEvent({
+          line: callLine,
+          description: `${name}() finished.`,
+          explanation: `${name}() completed and control returned to its caller.`,
+          eventType: this.isRecursiveCall(name, localContext) ? "RECURSION_RETURN" : "FUNCTION_RETURN",
+          context: parentContext,
+        });
       }
     }
 
@@ -722,9 +805,10 @@ class CompiledTraceInterpreter {
     }
 
     const leftArrayName = match[1];
-    const leftIndex = this.evaluateExpression(match[2], context);
+    const before = this.snapshotContext(context);
+    const leftIndex = this.evaluateExpression(match[2], context, line);
     const rightArrayName = match[3];
-    const rightIndex = this.evaluateExpression(match[4], context);
+    const rightIndex = this.evaluateExpression(match[4], context, line);
     const leftArray = this.getValue(leftArrayName, context);
     const rightArray = this.getValue(rightArrayName, context);
 
@@ -751,12 +835,14 @@ class CompiledTraceInterpreter {
       this.setValue(rightArrayName, nextRightArray, context);
     }
 
-    this.capture(
+    this.captureEvent({
       line,
-      `Swapped ${leftArrayName}[${leftIndex}] with ${rightArrayName}[${rightIndex}].`,
-      "This is the key visual step: the two highlighted elements exchange places in the array.",
+      description: `Swapped ${leftArrayName}[${leftIndex}] and ${rightArrayName}[${rightIndex}].`,
+      explanation: `${leftArrayName}[${leftIndex}] and ${rightArrayName}[${rightIndex}] exchanged values.`,
+      eventType: "ARRAY_WRITE",
       context,
-    );
+      before,
+    });
     return true;
   }
 
@@ -781,20 +867,22 @@ class CompiledTraceInterpreter {
         ? "This line reveals output in the console panel so the learner can compare the visualized state with the printed result."
         : "This line sends information to the output panel.";
 
-    this.capture(
+    this.captureEvent({
       line,
-      "Sent a result to the output panel.",
+      description: "Wrote to stdout.",
       explanation,
+      eventType: "OUTPUT",
       context,
-    );
+    });
     return true;
   }
 
-  private applyUpdate(statement: string, context: ExecutionContext) {
+  private applyUpdate(statement: string, line: number, codeLine: string, context: ExecutionContext) {
     const trimmed = normalizeStatement(statement);
     const incrementMatch = trimmed.match(/^([A-Za-z_]\w*)(\+\+|--)$/);
 
     if (incrementMatch) {
+      const before = this.snapshotContext(context);
       const currentValue = this.getValue(incrementMatch[1], context);
 
       if (typeof currentValue === "number") {
@@ -804,13 +892,22 @@ class CompiledTraceInterpreter {
           context,
         );
       }
+      this.captureEvent({
+        line,
+        codeLine,
+        description: `Incremented ${incrementMatch[1]}.`,
+        explanation: `${incrementMatch[1]} moved from ${serializeValue(currentValue)} to ${serializeValue(this.getValue(incrementMatch[1], context))}.`,
+        eventType: "LOOP_INCREMENT",
+        context,
+        before,
+      });
       return;
     }
 
     const assignmentMatch = trimmed.match(/^([A-Za-z_]\w*)\s*([+\-*/]?=)\s*(.+)$/);
 
     if (assignmentMatch) {
-      this.handleScalarAssignment(`${trimmed};`, 1, context);
+      this.handleScalarAssignment(`${trimmed};`, line, context);
     }
   }
 
@@ -821,10 +918,11 @@ class CompiledTraceInterpreter {
       const index = expression.indexOf(operator);
 
       if (index >= 0) {
-        const left = this.evaluateExpression(expression.slice(0, index), context);
+        const left = this.evaluateExpression(expression.slice(0, index), context, this.activeLine);
         const right = this.evaluateExpression(
           expression.slice(index + operator.length),
           context,
+          this.activeLine,
         );
 
         if (typeof left === "number" && typeof right === "number") {
@@ -846,10 +944,14 @@ class CompiledTraceInterpreter {
       }
     }
 
-    return Boolean(this.evaluateExpression(expression, context));
+    return Boolean(this.evaluateExpression(expression, context, this.activeLine));
   }
 
-  private evaluateExpression(expression: string, context: ExecutionContext): RuntimeValue {
+  private evaluateExpression(
+    expression: string,
+    context: ExecutionContext,
+    line = this.activeLine,
+  ): RuntimeValue {
     const trimmed = normalizeStatement(expression);
 
     if (!trimmed) {
@@ -866,7 +968,7 @@ class CompiledTraceInterpreter {
 
     if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
       return splitTopLevel(trimmed.slice(1, -1), ",").map((item) => {
-        const resolved = this.evaluateExpression(item, context);
+        const resolved = this.evaluateExpression(item, context, line);
         return typeof resolved === "number" || typeof resolved === "string"
           ? resolved
           : null;
@@ -884,10 +986,18 @@ class CompiledTraceInterpreter {
 
     if (arrayAccessMatch) {
       const arrayValue = this.getValue(arrayAccessMatch[1], context);
-      const indexValue = this.evaluateExpression(arrayAccessMatch[2], context);
+      const indexValue = this.evaluateExpression(arrayAccessMatch[2], context, line);
 
       if (Array.isArray(arrayValue) && typeof indexValue === "number") {
-        return arrayValue[indexValue] ?? null;
+        const value = arrayValue[indexValue] ?? null;
+        this.captureEvent({
+          line,
+          description: `Read ${arrayAccessMatch[1]}[${indexValue}].`,
+          explanation: `Read ${serializeValue(value)} from ${arrayAccessMatch[1]}[${indexValue}].`,
+          eventType: "ARRAY_READ",
+          context,
+        });
+        return value;
       }
     }
 
@@ -996,20 +1106,143 @@ class CompiledTraceInterpreter {
     context.values.set(name, value);
   }
 
-  private capture(
-    line: number,
-    description: string,
-    explanation: string,
-    context: ExecutionContext,
-  ) {
+  private captureEvent({
+    line,
+    codeLine,
+    description,
+    explanation,
+    eventType,
+    context,
+    before,
+  }: {
+    line: number;
+    codeLine?: string;
+    description: string;
+    explanation: string;
+    eventType: TraceEventType;
+    context: ExecutionContext;
+    before?: SnapshotBundle;
+  }) {
+    const after = this.snapshotContext(context);
+    const variablesBefore = before?.variables ?? after.variables;
+    const stackFramesBefore = before?.stackFrames ?? after.stackFrames;
+    const heapStateBefore = before?.heapState ?? after.heapState;
+    const changedVariables = this.diffVariables(variablesBefore, after.variables);
+
     this.steps.push({
+      frameId: `frame-${++this.frameCounter}`,
+      eventType,
       line,
+      lineNumber: line,
+      codeLine,
       description,
       explanation,
-      variables: this.collectVariables(context),
-      stack: this.collectStackFrames(context),
+      variables: after.variables,
+      variablesBefore,
+      variablesAfter: after.variables,
+      changedVariables,
+      stack: after.stackFrames,
+      stackFrames: after.stackFrames,
       output: this.finalOutputLines.slice(0, this.revealedOutputCount),
+      heap: after.heapState,
+      heapState: after.heapState,
+      stdout: this.finalOutputLines.slice(0, this.revealedOutputCount),
+      timestamp: this.frameCounter,
+      memoryChanges: [
+        ...this.diffVariables(variablesBefore, after.variables).map((change) => ({
+          target: change.name,
+          scope: change.scope,
+          kind:
+            typeof change.before === "undefined"
+              ? ("added" as const)
+              : typeof change.after === "undefined"
+                ? ("removed" as const)
+                : ("updated" as const),
+          before: change.before,
+          after: change.after,
+        })),
+      ],
+      functionCalls: this.buildFunctionCalls(after.stackFrames, line),
+      activeScopes: after.stackFrames.map((frame) => ({
+        name: frame.name,
+        variables: frame.locals,
+      })),
+      traceSource: "compiled-execution-interpreter",
+      traceQuality: "full",
     });
+  }
+
+  private snapshotContext(context: ExecutionContext): SnapshotBundle {
+    return {
+      variables: this.collectVariables(context),
+      stackFrames: this.collectStackFrames(context),
+      heapState: this.collectHeapState(context),
+    };
+  }
+
+  private diffVariables(
+    before: VariableSnapshot[],
+    after: VariableSnapshot[],
+  ): ChangedVariable[] {
+    const beforeMap = new Map(before.map((entry) => [`${entry.scope}:${entry.name}`, entry.value]));
+    const afterMap = new Map(after.map((entry) => [`${entry.scope}:${entry.name}`, entry.value]));
+    const keys = new Set([...beforeMap.keys(), ...afterMap.keys()]);
+    const changes: ChangedVariable[] = [];
+
+    for (const key of keys) {
+      const previousValue = beforeMap.get(key);
+      const nextValue = afterMap.get(key);
+
+      if (previousValue === nextValue) {
+        continue;
+      }
+
+      const [scope, name] = key.split(":");
+      changes.push({
+        name: name ?? key,
+        scope: scope ?? "global",
+        before: previousValue,
+        after: nextValue,
+      });
+    }
+
+    return changes;
+  }
+
+  private collectHeapState(context: ExecutionContext): HeapSnapshotNode[] {
+    return this.collectVariables(context)
+      .filter((variable) => variable.value.startsWith("[") || variable.value.startsWith("{"))
+      .map((variable) => ({
+        id: `${variable.scope}:${variable.name}`,
+        label: variable.name,
+        type: variable.value.startsWith("[") ? "array" : "object",
+        value: variable.value,
+        scope: variable.scope,
+      }));
+  }
+
+  private buildFunctionCalls(stackFrames: StackFrameSnapshot[], line: number) {
+    return stackFrames.map((frame, index) => ({
+      name: frame.name,
+      event: (index === 0 ? "active" : "enter") as "active" | "enter",
+      depth: index,
+      lineNumber: line,
+    }));
+  }
+
+  private isRecursiveCall(name: string, context: ExecutionContext) {
+    let current: ExecutionContext | null = context;
+    while (current) {
+      if (current.scopeName === name) {
+        return true;
+      }
+      current = current.parent;
+    }
+    return false;
+  }
+
+  private isRecursiveContext(context: ExecutionContext) {
+    return this.isRecursiveCall(context.scopeName, context.parent ?? this.rootContext);
   }
 
   private collectVariables(context: ExecutionContext): VariableSnapshot[] {
