@@ -107,7 +107,7 @@ export const AdminLayout = () => {
               <div className="text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
                 Session
               </div>
-              <p className="mt-3 truncate text-sm text-[var(--cs-text)]">{user?.email}</p>
+              <p className="mt-3 break-all text-sm leading-6 text-[var(--cs-text)]">{user?.email}</p>
               <Button variant="secondary" className="mt-4 w-full" onClick={() => void logout()}>
                 Log out
               </Button>
@@ -149,9 +149,9 @@ export const AdminLayout = () => {
               ))}
             </nav>
 
-            <div className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] p-4">
+            <div className="min-w-0 rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] p-4">
               <div className="text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Session</div>
-              <p className="mt-3 truncate text-sm text-[var(--cs-text)]">{user?.email}</p>
+              <p className="mt-3 break-all text-sm leading-6 text-[var(--cs-text)]">{user?.email}</p>
               <Button variant="secondary" className="mt-4 w-full" onClick={() => void logout()}>
                 Log out
               </Button>

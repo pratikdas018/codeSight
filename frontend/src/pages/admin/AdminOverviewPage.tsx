@@ -107,36 +107,36 @@ export const AdminOverviewPage = () => {
                 Use this command surface to watch adoption, execution quality, playback engagement,
                 and error pressure without leaving the product.
               </p>
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] p-4">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
+              <div className="mt-6 grid gap-3 md:grid-cols-3">
+                <div className="min-w-0 rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] p-4">
+                  <div className="flex items-center gap-2 break-words text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
                     <UsersRound className="h-4 w-4 text-[var(--cs-primary)]" />
                     User pulse
                   </div>
                   <div className="mt-3 text-2xl font-semibold tracking-[-0.05em]">
                     {metrics.activeUsersToday}
                   </div>
-                  <p className="mt-2 text-sm text-[var(--cs-text-muted)]">Active learners today</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">Active learners today</p>
                 </div>
-                <div className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] p-4">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
+                <div className="min-w-0 rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] p-4">
+                  <div className="flex items-center gap-2 break-words text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
                     <Zap className="h-4 w-4 text-[var(--cs-primary)]" />
                     Runtime
                   </div>
                   <div className="mt-3 text-2xl font-semibold tracking-[-0.05em]">
                     {metrics.successRate}%
                   </div>
-                  <p className="mt-2 text-sm text-[var(--cs-text-muted)]">Execution success rate</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">Execution success rate</p>
                 </div>
-                <div className="rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] p-4">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
+                <div className="min-w-0 rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] p-4">
+                  <div className="flex items-center gap-2 break-words text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
                     <Sparkles className="h-4 w-4 text-[var(--cs-primary)]" />
                     Learning
                   </div>
                   <div className="mt-3 text-2xl font-semibold tracking-[-0.05em]">
                     {metrics.visualizationCount}
                   </div>
-                  <p className="mt-2 text-sm text-[var(--cs-text-muted)]">Playback sessions tracked</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">Playback sessions tracked</p>
                 </div>
               </div>
             </div>
