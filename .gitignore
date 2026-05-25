@@ -1,5 +1,6 @@
 node_modules
 dist
+release
 .env
 backend/.env
 frontend/.env
@@ -9,3 +10,4 @@ backend/prisma/*.db-*
 coverage
 .DS_Store
 electron/dist
+tmp_pkg_snapshot.txt

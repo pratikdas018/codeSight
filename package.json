@@ -9,19 +9,22 @@
     "frontend"
   ],
   "scripts": {
+    "clean:release": "node -e \"require('node:fs').rmSync('release', { recursive: true, force: true })\"",
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\" \"npm run electron:watch\" \"npm run electron:dev\"",
     "build": "npm run build --prefix backend && npm run build --prefix frontend && npm run build:electron",
     "build:electron": "tsc -p electron/tsconfig.json",
     "electron:watch": "tsc -p electron/tsconfig.json --watch --preserveWatchOutput",
     "electron:dev": "npm run build:electron && wait-on file:electron/dist/main.js file:electron/dist/preload.js http-get://127.0.0.1:4000/health http-get://127.0.0.1:5180 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5180 CODESIGHT_BACKEND_URL=http://127.0.0.1:4000 electron electron/dist/main.js",
     "electron:start": "npm run build && electron .",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run clean:release && npm run build && electron-builder"
   },
   "keywords": [
     "codesight",
     "monorepo"
   ],
-  "author": "",
+  "author": {
+    "name": "Pratik"
+  },
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^25.6.0",
@@ -30,6 +33,7 @@
     "electron": "^41.3.0",
     "electron-builder": "^26.8.1",
     "electronmon": "^2.0.4",
+    "rcedit": "^5.0.2",
     "typescript": "^6.0.3",
     "wait-on": "^9.0.5"
   },
@@ -44,10 +48,12 @@
     "pino-http": "^11.0.0"
   },
   "build": {
-    "appId": "com.codesight.desktop",
+    "appId": "com.pratik.codesight",
     "productName": "CodeSight",
+    "copyright": "\u00A9 Pratik",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
+      "output": "release",
       "buildResources": "electron/assets"
     },
     "files": [
@@ -58,6 +64,7 @@
       "backend/dist/**/*",
       "backend/package.json"
     ],
+    "afterPack": "./electron/afterPack.mjs",
     "extraMetadata": {
       "main": "electron/dist/main.js"
     },

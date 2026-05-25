@@ -854,6 +854,20 @@ const createMainWindow = async () => {
     );
   });
 
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    const isRefreshShortcut =
+      input.type === "keyDown" &&
+      input.key.toLowerCase() === "r" &&
+      (input.control || input.meta);
+
+    if (!isRefreshShortcut) {
+      return;
+    }
+
+    event.preventDefault();
+    reloadMainWindow();
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
     void shell.openExternal(url);
     return { action: "deny" };
@@ -922,6 +936,14 @@ const focusExistingWindow = () => {
   targetWindow.focus();
 };
 
+const reloadMainWindow = () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.reload();
+};
+
 const buildMenu = async () => {
   const recentFiles = await readRecentFiles();
   const recentFileItems: MenuItemConstructorOptions[] =
@@ -987,6 +1009,13 @@ const buildMenu = async () => {
 
   const viewSubmenu: MenuItemConstructorOptions[] = [
     {
+      label: "Refresh Workspace",
+      accelerator: "CmdOrCtrl+R",
+      click: () => {
+        reloadMainWindow();
+      },
+    },
+    {
       label: "Toggle DevTools",
       accelerator:
         process.platform === "darwin" ? "Alt+Command+I" : "Ctrl+Shift+I",
@@ -1001,7 +1030,7 @@ const buildMenu = async () => {
   ];
 
   if (shouldUseDevServer) {
-    viewSubmenu.splice(1, 0, { type: "separator" }, { role: "reload" });
+    viewSubmenu.splice(1, 0, { type: "separator" });
   }
 
   const helpMenu: MenuItemConstructorOptions = {
@@ -1295,7 +1324,7 @@ app.on("second-instance", () => {
 app.whenReady().then(async () => {
   try {
     logDesktopMessage("CodeSight desktop startup initiated.");
-    app.setAppUserModelId("com.codesight.desktop");
+    app.setAppUserModelId("com.pratik.codesight");
     validateDesktopBundle();
     await startEmbeddedBackend();
     await buildMenu();
