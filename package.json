@@ -1,6 +1,6 @@
 {
   "name": "codesight",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "description": "CodeSight full-stack MVP",
   "main": "electron/dist/main.js",
