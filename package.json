@@ -1,6 +1,6 @@
 {
   "name": "codesight",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "CodeSight full-stack MVP",
   "main": "electron/dist/main.js",
@@ -51,7 +51,7 @@
   "build": {
     "appId": "com.pratik.codesight",
     "productName": "CodeSight",
-    "copyright": "\u00A9 Pratik",
+    "copyright": "© Pratik",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release",
