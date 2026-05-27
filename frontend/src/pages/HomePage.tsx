@@ -66,7 +66,7 @@ import {
   formatMemoryUsage,
 } from "../utils/formatters";
 import { createRendererLogger, logExecutionTrace } from "../utils/logger";
-import { createVisualizationModel } from "../visualization/model";
+import { createExecutionClassroomFrame } from "../visualization/executionClassroom";
 
 const createClientLogId = () =>
   globalThis.crypto?.randomUUID?.() ??
@@ -365,62 +365,6 @@ const normalizeTracePayload = (incomingTrace: ExecutionTrace): ExecutionTrace =>
   };
 };
 
-const buildPlainEnglishSummary = (lineText: string, language: SupportedLanguage) => {
-  const trimmed = lineText.trim();
-
-  if (!trimmed) {
-    return `Press Run and CodeSight will explain the ${languageLabels[language]} code one executed line at a time.`;
-  }
-
-  if (
-    trimmed.startsWith("for ") ||
-    trimmed.startsWith("for(") ||
-    trimmed.startsWith("while ") ||
-    trimmed.startsWith("while(")
-  ) {
-    return "This line repeats a block of work. The program will come back here until the loop finishes.";
-  }
-
-  if (trimmed.startsWith("if ") || trimmed.startsWith("if(")) {
-    return "This line checks a condition and decides which path the program should follow next.";
-  }
-
-  if (
-    trimmed.includes("print(") ||
-    trimmed.includes("console.log") ||
-    trimmed.includes("printf(") ||
-    trimmed.includes("System.out.println")
-  ) {
-    return "This line sends information to the output area so the user can see a result.";
-  }
-
-  if (trimmed.startsWith("return")) {
-    return "This line sends a value back from the current function so the rest of the program can use it.";
-  }
-
-  if (
-    trimmed.includes(".append(") ||
-    trimmed.includes(".push(") ||
-    trimmed.includes("add(")
-  ) {
-    return "This line adds a new item into a list or collection, so the stored data grows by one step.";
-  }
-
-  if (
-    trimmed.startsWith("def ") ||
-    trimmed.startsWith("function ") ||
-    trimmed.includes(" main(")
-  ) {
-    return "This line defines a reusable block of code. Nothing runs here until the program calls it.";
-  }
-
-  if (trimmed.includes("=") && !trimmed.includes("==") && !trimmed.includes("!=")) {
-    return "This line stores a value in memory or updates an existing variable.";
-  }
-
-  return "This line is part of the program flow. Use the highlighted variables and timeline to see its effect.";
-};
-
 const isTypingTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   Boolean(
@@ -428,29 +372,6 @@ const isTypingTarget = (target: EventTarget | null) =>
       'input, textarea, select, [contenteditable="true"], .monaco-editor textarea',
     ),
   );
-
-const getActiveFunctionName = (step: ExecutionStep | null) => {
-  const activeCall = [...(step?.functionCalls ?? [])]
-    .sort((left, right) => right.depth - left.depth)
-    .find((call) => call.event === "active" || call.event === "enter");
-
-  if (activeCall?.name) {
-    return activeCall.name;
-  }
-
-  const frameName = step?.stack?.[0]?.name;
-
-  if (frameName && frameName !== "global") {
-    return frameName;
-  }
-
-  return "global scope";
-};
-
-const getStepLineNumber = (step: ExecutionStep | null) => {
-  const candidate = step?.line ?? step?.lineNumber ?? 0;
-  return candidate > 0 ? candidate : null;
-};
 
 interface HomePageProps {
   onGlobalNotice?: (notice: Notice) => void;
@@ -644,8 +565,6 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const activeStep = playbackFrames[currentStepIndex] ?? null;
   const previousStep =
     currentStepIndex > 0 ? playbackFrames[currentStepIndex - 1] ?? null : null;
-  const activeLineNumber = getStepLineNumber(activeStep);
-  const currentFunctionName = getActiveFunctionName(activeStep);
   const consoleOutput =
     activeStep?.stdout ??
     activeStep?.output ??
@@ -654,32 +573,35 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         playbackFrames[playbackFrames.length - 1]?.output ??
         trace.outputLines
       : trace.outputLines);
-  const visualizationModel = useMemo(
-    () => createVisualizationModel(activeStep, previousStep),
-    [activeStep, previousStep],
-  );
-
-  const trackedVariables = useMemo(
+  const deferredCode = useDeferredValue(code);
+  const codeLines = useMemo(() => deferredCode.split(/\r?\n/), [deferredCode]);
+  const classroomFrame = useMemo(
     () =>
-      [...visualizationModel.variables].sort((left, right) => {
-        const leftScore =
-          Number(left.change !== "unchanged") * 3 +
-          Number(left.isComposite) * 2 +
-          Number(left.isPointer);
-        const rightScore =
-          Number(right.change !== "unchanged") * 3 +
-          Number(right.isComposite) * 2 +
-          Number(right.isPointer);
-
-        return rightScore - leftScore;
+      createExecutionClassroomFrame({
+        trace,
+        step: activeStep,
+        previousStep,
+        steps: playbackFrames,
+        currentStepIndex,
+        codeLines,
+        language,
       }),
-    [visualizationModel.variables],
+    [
+      activeStep,
+      codeLines,
+      currentStepIndex,
+      language,
+      playbackFrames,
+      previousStep,
+      trace,
+    ],
   );
-
+  const activeLineNumber = classroomFrame.lineNumber;
+  const currentFunctionName = classroomFrame.functionName;
+  const visualizationModel = classroomFrame.visualization;
+  const trackedVariables = classroomFrame.trackedVariables;
   const featuredVariables = trackedVariables.slice(0, 3);
-  const changedVariables = trackedVariables.filter(
-    (variable) => variable.change !== "unchanged",
-  );
+  const changedVariables = classroomFrame.changedVariables;
   const primaryArray = visualizationModel.arrays[0] ?? null;
   const stackFrames = playbackFrames
     .slice(Math.max(0, currentStepIndex - 2), currentStepIndex + 1)
@@ -688,20 +610,8 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     Math.max(0, currentStepIndex - 2),
     Math.min(playbackFrames.length, currentStepIndex + 3),
   );
-  const deferredCode = useDeferredValue(code);
-  const codeLines = useMemo(() => deferredCode.split(/\r?\n/), [deferredCode]);
-  const activeLineCode =
-    activeStep?.codeLine?.trim() ||
-    (activeLineNumber
-      ? codeLines[activeLineNumber - 1]?.trim() ?? ""
-      : "");
-  const plainEnglishSummary = buildPlainEnglishSummary(activeLineCode, language);
-  const playbackSummary =
-    activeStep?.explanation ??
-    activeStep?.description ??
-    (playbackFrames.length > 0
-      ? "Step through the timeline to keep the editor and runtime panels in sync."
-      : "Run your program to generate a guided execution story.");
+  const activeLineCode = classroomFrame.lineCode;
+  const playbackSummary = classroomFrame.explanation;
   const changedVariableSummary =
     changedVariables.length > 0
       ? changedVariables
@@ -720,7 +630,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         ]
       : [
           "Use Back, Play, and Next to move through the story.",
-          "Read the plain-English explanation before looking at the raw code.",
+          "Read the synced explanation before looking at the raw code.",
           "Watch the variable cards to see what changed on this step.",
         ];
 
@@ -1323,7 +1233,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       return;
     }
 
-    if (!activeLineNumber || !activeStep.explanation) {
+    if (!activeLineNumber || !classroomFrame.explanation) {
       explanationNode.style.display = "none";
       explanationPositionRef.current = null;
       editor.layoutContentWidget(explanationWidget);
@@ -1333,7 +1243,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     explanationNode.style.display = "block";
     explanationNode.className = clsx(
       "codesight-explanation-widget",
-      focusMode ? "codesight-explanation-widget-focus" : "",
+      focusMode || isPlaying ? "codesight-explanation-widget-focus" : "",
     );
 
     const titleNode = document.createElement("p");
@@ -1342,13 +1252,20 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
 
     const bodyNode = document.createElement("p");
     bodyNode.className = "codesight-explanation-body";
-    bodyNode.textContent = activeStep.explanation;
+    bodyNode.textContent = classroomFrame.explanation;
 
     explanationNode.replaceChildren(titleNode, bodyNode);
     explanationPositionRef.current = new monaco.Position(activeLineNumber, 1);
     editor.layoutContentWidget(explanationWidget);
     syncEditorToLine(activeLineNumber);
-  }, [activeLineNumber, activeStep?.explanation, currentStepIndex, focusMode, syncEditorToLine]);
+  }, [
+    activeLineNumber,
+    classroomFrame.explanation,
+    currentStepIndex,
+    focusMode,
+    isPlaying,
+    syncEditorToLine,
+  ]);
 
   useEffect(
     () => () => {
@@ -1784,14 +1701,6 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     }
 
     jumpToPlaybackIndex(currentStepIndex + 1, "debugger", "variables");
-  };
-
-  const handleReset = () => {
-    closeWorkspacePanels();
-    stopPlayback();
-    setActiveWorkspaceTab("explorer");
-    setActiveRailSection("guide");
-    setCurrentStepIndex(0);
   };
 
   const handleTogglePlayback = () => {
@@ -2420,7 +2329,6 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 isPlaying={isPlaying}
                 playbackRate={playbackRate}
                 stepSummary={playbackSummary}
-                traceError={trace.error || undefined}
                 onPlaybackRateChange={setPlaybackRate}
                 onStepScrub={(nextIndex) => {
                   jumpToPlaybackIndex(nextIndex, "visualizer", "flow");
@@ -2429,7 +2337,6 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 onNext={handleNext}
                 onTogglePlayback={handleTogglePlayback}
                 onPausePlayback={stopPlayback}
-                onReset={handleReset}
               />
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1">
@@ -2790,22 +2697,13 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
             ) : (
               <ExecutionVisualizer
                 trace={trace}
-                step={activeStep}
-                previousStep={previousStep}
-                steps={playbackFrames}
-                currentStepIndex={currentStepIndex}
-                activeLineCode={activeLineCode}
-                plainEnglishSummary={plainEnglishSummary}
-                consoleOutput={consoleOutput}
-                error={trace.error || undefined}
+                frame={classroomFrame}
                 isExecuting={isExecuting}
+                focusMode={focusMode || isPlaying}
                 onDiagnosticSelect={(diagnostic) => {
                   focusDiagnostic(diagnostic);
                   setActiveWorkspaceTab("visualizer");
                   setActiveRailSection("flow");
-                }}
-                onStepSelect={(nextIndex) => {
-                  jumpToPlaybackIndex(nextIndex, "visualizer", "flow");
                 }}
               />
             )}

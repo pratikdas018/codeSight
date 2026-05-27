@@ -10,15 +10,12 @@ interface PlaybackDockProps {
   isPlaying: boolean;
   playbackRate: number;
   stepSummary: string;
-  traceError?: string;
-  breakpointLines?: number[];
   onPlaybackRateChange: (value: number) => void;
   onStepScrub: (nextIndex: number) => void;
   onPrevious: () => void;
   onNext: () => void;
   onTogglePlayback: () => void;
   onPausePlayback: () => void;
-  onReset: () => void;
 }
 
 export const PlaybackDock = ({
@@ -29,126 +26,99 @@ export const PlaybackDock = ({
   isPlaying,
   playbackRate,
   stepSummary,
-  traceError,
-  breakpointLines,
   onPlaybackRateChange,
   onStepScrub,
   onPrevious,
   onNext,
   onTogglePlayback,
   onPausePlayback,
-  onReset,
 }: PlaybackDockProps) => {
-  const stepCount = steps.length;
-  const hasTrace = stepCount > 0;
-  const currentStep = hasTrace ? steps[currentStepIndex] : null;
-  const stepLabel = hasTrace
-    ? `Step ${currentStepIndex + 1}/${stepCount}`
-    : "Awaiting trace";
-  const lineLabel = activeLine ? `Line ${activeLine}` : "No line";
-  const functionLabel = currentFunctionName ?? "global";
-  const eventLabel = currentStep?.eventType?.replace(/_/g, " ") ?? "STEP";
+  const hasTrace = steps.length > 0;
 
   return (
-    <div
-      className="mb-4 w-full rounded-[1.2rem] border border-[rgba(114,255,112,0.08)] bg-[linear-gradient(180deg,rgba(8,10,8,0.9),rgba(7,9,7,0.82))] px-3 py-2 shadow-[0_12px_24px_rgba(0,0,0,0.16)]"
-      title={hasTrace ? stepSummary : "Run your program to capture a synchronized execution timeline."}
-    >
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 md:gap-3">
-          <div className="flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
-          <span className="text-[var(--cs-text-muted)]">Trace</span>
-          <span>{stepLabel}</span>
-          <span className="hidden sm:inline">{lineLabel}</span>
-          <span className="hidden sm:inline">{eventLabel}</span>
-          <span className="hidden md:inline max-w-[7rem] truncate text-[var(--cs-primary-bright)]">
-            {functionLabel}
-          </span>
-          {traceError ? (
-            <span className="rounded-full border border-rose-400/20 bg-rose-400/8 px-1.5 py-0.5 text-[9px] text-rose-200">
-              issue
-            </span>
-          ) : null}
+    <div className="rounded-[1.35rem] border border-[rgba(114,255,112,0.1)] bg-[linear-gradient(180deg,rgba(7,10,7,0.96),rgba(5,8,5,0.92))] px-4 py-3 shadow-[0_14px_28px_rgba(0,0,0,0.22)]">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">
+              {hasTrace
+                ? `Frame ${currentStepIndex + 1}/${steps.length}`
+                : "Execution timeline"}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em] text-[var(--cs-text-muted)]">
+              <span>{activeLine ? `Line ${activeLine}` : "No line"}</span>
+              {currentFunctionName ? <span>{currentFunctionName}</span> : null}
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onPrevious}
               disabled={!hasTrace || currentStepIndex <= 0}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Previous frame"
             >
-              <span className="material-symbols-outlined text-[15px]">skip_previous</span>
+              <span className="material-symbols-outlined text-[18px]">skip_previous</span>
             </button>
             <button
               type="button"
               onClick={onTogglePlayback}
               disabled={!hasTrace}
               className={clsx(
-                "flex h-7 w-7 items-center justify-center rounded-full border text-[var(--cs-text)] transition disabled:cursor-not-allowed disabled:opacity-40",
+                "flex h-11 w-11 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40",
                 hasTrace
-                  ? "border-[rgba(114,255,112,0.2)] bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)] shadow-[0_0_18px_rgba(0,255,65,0.12)] hover:border-[rgba(114,255,112,0.3)] hover:bg-[rgba(114,255,112,0.14)]"
-                  : "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)]",
+                  ? "border-[rgba(114,255,112,0.22)] bg-[rgba(114,255,112,0.12)] text-[var(--cs-primary-bright)] shadow-[0_0_22px_rgba(114,255,112,0.16)] hover:border-[rgba(114,255,112,0.34)]"
+                  : "border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)]",
               )}
               aria-label={isPlaying ? "Pause playback" : "Play playback"}
             >
-              <span className="material-symbols-outlined text-[15px]">
+              <span className="material-symbols-outlined text-[22px]">
                 {isPlaying ? "pause" : "play_arrow"}
               </span>
             </button>
             <button
               type="button"
-              onClick={onReset}
-              disabled={!hasTrace}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Stop and reset playback"
-            >
-              <span className="material-symbols-outlined text-[15px]">stop</span>
-            </button>
-            <button
-              type="button"
               onClick={onNext}
-              disabled={!hasTrace || currentStepIndex >= stepCount - 1}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!hasTrace || currentStepIndex >= steps.length - 1}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-[var(--cs-text-muted)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Next frame"
             >
-              <span className="material-symbols-outlined text-[15px]">skip_next</span>
+              <span className="material-symbols-outlined text-[18px]">skip_next</span>
             </button>
-          </div>
-
-          <div className="min-w-0 flex-[1_1_16rem]">
-            <TimelineScrubber
-              steps={steps}
-              currentStepIndex={currentStepIndex}
-              isPlaying={isPlaying}
-              breakpointLines={breakpointLines}
-              traceError={traceError}
-              onStepSelect={onStepScrub}
-              onPrevious={onPrevious}
-              onNext={onNext}
-              onTogglePlayback={onTogglePlayback}
-              onPausePlayback={onPausePlayback}
-            />
           </div>
         </div>
 
-        <label className="flex w-full items-center gap-2 rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-2.5 py-1 text-[10px] text-[var(--cs-text-subtle)] sm:w-auto sm:min-w-[12rem] lg:flex-none">
-          <span>Speed</span>
-          <input
-            type="range"
-            min="0.5"
-            max="2.5"
-            step="0.25"
-            value={playbackRate}
-            onChange={(event) => onPlaybackRateChange(Number(event.target.value))}
-            className="min-w-0 flex-1 accent-[#00ff41] sm:w-20 sm:flex-none"
-            aria-label="Playback speed"
-          />
-          <span className="w-8 text-right font-mono text-[var(--cs-text)]">
-            {playbackRate.toFixed(2)}x
-          </span>
-        </label>
+        <TimelineScrubber
+          steps={steps}
+          currentStepIndex={currentStepIndex}
+          isPlaying={isPlaying}
+          onStepSelect={onStepScrub}
+          onPausePlayback={onPausePlayback}
+        />
+
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <p className="min-w-0 flex-1 text-sm leading-6 text-[var(--cs-text-muted)]">
+            {stepSummary}
+          </p>
+
+          <label className="flex items-center gap-2 rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
+            <span>Speed</span>
+            <input
+              type="range"
+              min="0.5"
+              max="2.5"
+              step="0.25"
+              value={playbackRate}
+              onChange={(event) => onPlaybackRateChange(Number(event.target.value))}
+              className="w-20 accent-[#72ff70]"
+              aria-label="Playback speed"
+            />
+            <span className="w-9 text-right font-mono text-[var(--cs-text)]">
+              {playbackRate.toFixed(2)}x
+            </span>
+          </label>
+        </div>
       </div>
     </div>
   );
