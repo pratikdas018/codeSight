@@ -19,7 +19,9 @@ import { HelpPanel } from "../components/HelpPanel";
 import { PlaybackDock } from "../components/PlaybackDock";
 import { RuntimeManagerPanel } from "../components/RuntimeManagerPanel";
 import { ToastViewport } from "../components/ToastViewport";
+import { UpdateModal } from "../components/UpdateModal";
 import { useAuth } from "../hooks/useAuth";
+import { useAutoUpdate } from "../hooks/useAutoUpdate";
 import { usePlayback } from "../hooks/usePlayback";
 import {
   saveFeedbackRecord,
@@ -503,6 +505,15 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     useState(false);
   const { user, logout } = useAuth();
   const isDesktop = Boolean(window.electronAPI?.env.isElectron);
+  const {
+    updateState,
+    isModalOpen: isUpdateModalOpen,
+    setIsModalOpen: setIsUpdateModalOpen,
+    checkForUpdates,
+    downloadUpdate,
+    cancelUpdateDownload,
+    quitAndInstallUpdate,
+  } = useAutoUpdate();
 
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const decorationsRef =
@@ -2124,8 +2135,18 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const footerMemoryUsage = formatMemoryUsage(trace.metrics.peakMemoryKb);
   const footerCurrentLine = activeLineNumber ? `Line ${activeLineNumber}` : "Line --";
   const appVersionLabel = isDesktop
-    ? `v${window.electronAPI?.env.version ?? "1.0.0"}`
+    ? `v${updateState.currentVersion || window.electronAPI?.env.version || "1.0.0"}`
     : "Web Preview";
+  const isCheckingForUpdates = updateState.status === "checking";
+  const isDownloadingUpdate = updateState.status === "downloading";
+  const updateStatusTone =
+    updateState.status === "error"
+      ? "text-rose-200"
+      : updateState.status === "downloaded"
+        ? "text-[var(--cs-primary-bright)]"
+        : updateState.status === "available"
+          ? "text-[var(--cs-primary-soft)]"
+          : "text-[var(--cs-text-muted)]";
 
   return (
     <main className="min-h-screen bg-[var(--cs-bg)] text-[var(--cs-text)]">
@@ -2659,6 +2680,82 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                     />
                   ) : null}
 
+                  {isDesktop ? (
+                    <div className="rounded-xl border border-[rgba(114,255,112,0.14)] bg-[linear-gradient(180deg,rgba(15,22,15,0.94),rgba(9,12,9,0.94))] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Updates</div>
+                          <div className="mt-2 text-lg font-semibold text-[var(--cs-text)]">
+                            Current Version: {updateState.currentVersion}
+                          </div>
+                        </div>
+                        <div className="rounded-full border border-[rgba(114,255,112,0.16)] bg-[rgba(114,255,112,0.08)] px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--cs-primary-bright)]">
+                          GitHub Releases
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] p-3">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Latest release</div>
+                          <div className="mt-2 text-sm text-[var(--cs-text)]">
+                            {updateState.latestVersion
+                              ? `v${updateState.latestVersion}`
+                              : "No update detected yet"}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.03)] p-3">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Last checked</div>
+                          <div className="mt-2 text-sm text-[var(--cs-text)]">
+                            {updateState.lastCheckedAt
+                              ? formatDate(updateState.lastCheckedAt)
+                              : "Never"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className={`mt-4 text-sm leading-6 ${updateStatusTone}`}>
+                        {updateState.status === "downloading"
+                          ? `Downloading update... ${Math.round(updateState.progressPercent)}%`
+                          : updateState.message}
+                      </p>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void checkForUpdates();
+                          }}
+                          disabled={isCheckingForUpdates || isDownloadingUpdate}
+                          className="cs-button rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isCheckingForUpdates ? "Checking..." : "Check For Updates"}
+                        </button>
+
+                        {updateState.status === "available" ? (
+                          <button
+                            type="button"
+                            onClick={() => setIsUpdateModalOpen(true)}
+                            className="cs-button rounded-xl px-3"
+                          >
+                            View Update
+                          </button>
+                        ) : null}
+
+                        {updateState.status === "downloaded" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void quitAndInstallUpdate();
+                            }}
+                            className="cs-button rounded-xl px-3"
+                          >
+                            Restart &amp; Install
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] p-4">
                     <div className="text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Signed in</div>
                     <div className="mt-2 text-sm text-[var(--cs-text)]">{user?.email ?? "Authenticated user"}</div>
@@ -2744,6 +2841,17 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         }
         onOpenSettings={() => scrollToSection("account", "explorer")}
       />
+      {isDesktop ? (
+        <UpdateModal
+          open={isUpdateModalOpen}
+          onOpenChange={setIsUpdateModalOpen}
+          updateState={updateState}
+          onCheckForUpdates={checkForUpdates}
+          onDownloadUpdate={downloadUpdate}
+          onCancelDownload={cancelUpdateDownload}
+          onQuitAndInstall={quitAndInstallUpdate}
+        />
+      ) : null}
       <ToastViewport notice={notice} onDismiss={() => setNotice(null)} />
     </main>
   );

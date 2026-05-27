@@ -7,6 +7,7 @@ import {
   safeStorage,
   shell,
 } from "electron";
+import { UpdateService, type UpdateState } from "./updateService";
 import type {
   MenuItemConstructorOptions,
   MessageBoxOptions,
@@ -152,6 +153,7 @@ const codeFilters = [
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let backendServer: { close: (callback: () => void) => void } | null = null;
+let updateService: UpdateService | null = null;
 let hasRevealedMainWindow = false;
 const systemLogBacklog: SystemLogEntry[] = [];
 const maxSystemLogBacklog = 200;
@@ -397,6 +399,14 @@ const sendMenuAction = (action: MenuActionEvent) => {
   }
 
   mainWindow.webContents.send("menu:action", action);
+};
+
+const sendUpdateState = (state: UpdateState) => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send("updates:state-changed", state);
 };
 
 const setWindowTitle = (fileName?: string | null) => {
@@ -1316,6 +1326,27 @@ handleIpc("window:close", async (event) => {
   getSenderWindow(event)?.close();
 });
 
+handleIpc("desktop:get-update-state", async () => updateService?.getState() ?? null);
+
+handleIpc(
+  "desktop:check-for-updates",
+  async () => updateService?.checkForUpdates(true) ?? null,
+);
+
+handleIpc(
+  "desktop:download-update",
+  async () => updateService?.downloadUpdate() ?? null,
+);
+
+handleIpc(
+  "desktop:cancel-update-download",
+  async () => updateService?.cancelUpdateDownload() ?? null,
+);
+
+handleIpc("desktop:quit-and-install-update", async () => {
+  updateService?.quitAndInstall();
+});
+
 app.on("second-instance", () => {
   logDesktopMessage("Second instance requested. Focusing the existing window.");
   focusExistingWindow();
@@ -1326,10 +1357,16 @@ app.whenReady().then(async () => {
     logDesktopMessage("CodeSight desktop startup initiated.");
     app.setAppUserModelId("com.pratik.codesight");
     validateDesktopBundle();
+    updateService = new UpdateService({
+      onStateChange: sendUpdateState,
+      logger: writeSystemLog,
+    });
+    await updateService.initialize();
     await startEmbeddedBackend();
     await buildMenu();
     createSplashWindow();
     await createMainWindow();
+    updateService.scheduleStartupCheck();
     logDesktopMessage("Main window created successfully.");
 
     app.on("activate", async () => {

@@ -35,6 +35,35 @@ interface SystemLogEntry {
   details?: Record<string, string | number | boolean | null>;
 }
 
+type UpdateStatus =
+  | "unsupported"
+  | "idle"
+  | "checking"
+  | "available"
+  | "not-available"
+  | "downloading"
+  | "downloaded"
+  | "cancelled"
+  | "error";
+
+interface UpdateState {
+  currentVersion: string;
+  latestVersion: string | null;
+  releaseName: string | null;
+  releaseDate: string | null;
+  releaseNotes: string[];
+  status: UpdateStatus;
+  message: string;
+  progressPercent: number;
+  bytesPerSecond: number;
+  transferredBytes: number;
+  totalBytes: number;
+  lastCheckedAt: string | null;
+  errorMessage: string | null;
+  updateAvailable: boolean;
+  updateDownloaded: boolean;
+}
+
 const parseLogLevel = (value: string | undefined): DesktopLogLevel | null => {
   switch (value?.trim().toLowerCase()) {
     case "error":
@@ -107,6 +136,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getLocalSnippets: () => ipcRenderer.invoke("desktop:get-local-snippets"),
   openLocalSnippet: () => ipcRenderer.invoke("desktop:open-local-snippet"),
   getRecentFiles: () => ipcRenderer.invoke("desktop:get-recent-files"),
+  getUpdateState: () => ipcRenderer.invoke("desktop:get-update-state"),
+  checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("desktop:download-update"),
+  cancelUpdateDownload: () => ipcRenderer.invoke("desktop:cancel-update-download"),
+  quitAndInstallUpdate: () => ipcRenderer.invoke("desktop:quit-and-install-update"),
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
   toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),
@@ -134,6 +168,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
     return () => {
       ipcRenderer.removeListener("menu:action", handler);
+    };
+  },
+  onUpdateStateChanged: (callback: (state: UpdateState) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      state: UpdateState,
+    ) => {
+      callback(state);
+    };
+
+    ipcRenderer.on("updates:state-changed", handler);
+
+    return () => {
+      ipcRenderer.removeListener("updates:state-changed", handler);
     };
   },
 });

@@ -113,6 +113,11 @@ interface Window {
     }) => Promise<LocalSnippetRecord>;
     getLocalSnippets: () => Promise<LocalSnippetRecord[]>;
     getRecentFiles: () => Promise<RecentFileRecord[]>;
+    getUpdateState: () => Promise<import("./utils/updates").UpdateState | null>;
+    checkForUpdates: () => Promise<import("./utils/updates").UpdateState | null>;
+    downloadUpdate: () => Promise<import("./utils/updates").UpdateState | null>;
+    cancelUpdateDownload: () => Promise<import("./utils/updates").UpdateState | null>;
+    quitAndInstallUpdate: () => Promise<void>;
     openLocalSnippet: () => Promise<{
       canceled: boolean;
       filePath?: string;
@@ -120,5 +125,8 @@ interface Window {
     }>;
     onSystemLog: (callback: (entry: SystemLogEntry) => void) => () => void;
     onMenuAction: (callback: (action: MenuActionEvent) => void) => () => void;
+    onUpdateStateChanged: (
+      callback: (state: import("./utils/updates").UpdateState) => void,
+    ) => () => void;
   };
 }

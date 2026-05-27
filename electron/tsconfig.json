@@ -12,5 +12,5 @@
     "ignoreDeprecations": "6.0",
     "types": ["node"]
   },
-  "include": ["./main.ts", "./preload.ts"]
+  "include": ["./main.ts", "./preload.ts", "./updateService.ts"]
 }
