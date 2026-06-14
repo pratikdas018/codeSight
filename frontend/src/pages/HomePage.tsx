@@ -441,6 +441,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
   const revealFrameRef = useRef<number | null>(null);
+  const centerNextRevealRef = useRef(false);
   const executionStartedAtRef = useRef<number | null>(null);
   const explanationNodeRef = useRef<HTMLDivElement | null>(null);
   const explanationPositionRef = useRef<Monaco.Position | null>(null);
@@ -1071,43 +1072,69 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     },
   );
 
-  const syncEditorToLine = useEffectEvent((lineNumber: number, column = 1) => {
-    const editor = editorRef.current;
-    const monaco = monacoRef.current;
+  const syncEditorToLine = useEffectEvent(
+    (
+      lineNumber: number,
+      column = 1,
+      options: { center?: boolean } = {},
+    ) => {
+      const editor = editorRef.current;
+      const monaco = monacoRef.current;
 
-    if (!editor || !monaco || lineNumber < 1) {
-      return;
-    }
+      if (!editor || !monaco || lineNumber < 1) {
+        return;
+      }
 
-    if (typeof revealFrameRef.current === "number") {
-      window.cancelAnimationFrame(revealFrameRef.current);
-    }
+      if (typeof revealFrameRef.current === "number") {
+        window.cancelAnimationFrame(revealFrameRef.current);
+      }
 
-    revealFrameRef.current = window.requestAnimationFrame(() => {
-      const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight);
-      const editorHeight = editor.getLayoutInfo().height;
-      const targetTop = Math.max(
-        0,
-        editor.getTopForLineNumber(lineNumber) -
-          editorHeight / 2 +
-          lineHeight / 2,
-      );
+      revealFrameRef.current = window.requestAnimationFrame(() => {
+        const safeColumn = Math.max(1, column);
+        const model = editor.getModel();
+        const targetLine = model
+          ? Math.min(Math.max(lineNumber, 1), model.getLineCount())
+          : lineNumber;
+        const position = {
+          lineNumber: targetLine,
+          column: safeColumn,
+        };
+        const visibleRange = editor.getVisibleRanges()[0];
+        const visibleLineCount = visibleRange
+          ? visibleRange.endLineNumber - visibleRange.startLineNumber + 1
+          : 0;
+        const edgeBuffer = Math.max(3, Math.ceil(visibleLineCount * 0.22));
+        const isVisible = visibleRange
+          ? targetLine >= visibleRange.startLineNumber &&
+            targetLine <= visibleRange.endLineNumber
+          : false;
+        const isNearViewportEdge =
+          !visibleRange ||
+          targetLine <= visibleRange.startLineNumber + edgeBuffer ||
+          targetLine >= visibleRange.endLineNumber - edgeBuffer;
 
-      editor.setScrollTop(targetTop, monaco.editor.ScrollType.Smooth);
-      editor.revealPositionInCenter(
-        {
-          lineNumber,
-          column: Math.max(1, column),
-        },
-        monaco.editor.ScrollType.Smooth,
-      );
-      editor.setPosition({
-        lineNumber,
-        column: Math.max(1, column),
+        editor.setPosition(position);
+
+        if (options.center || !isVisible || isNearViewportEdge) {
+          const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight);
+          const editorHeight = editor.getLayoutInfo().height;
+          const centeredTop = Math.max(
+            0,
+            editor.getTopForLineNumber(targetLine) -
+              editorHeight / 2 +
+              lineHeight / 2,
+          );
+
+          editor.setScrollTop(centeredTop, monaco.editor.ScrollType.Smooth);
+          editor.revealLineInCenter(targetLine, monaco.editor.ScrollType.Smooth);
+        } else {
+          editor.revealLine(targetLine, monaco.editor.ScrollType.Smooth);
+        }
+
+        revealFrameRef.current = null;
       });
-      revealFrameRef.current = null;
-    });
-  });
+    },
+  );
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -1220,7 +1247,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         },
       },
     ]);
-    syncEditorToLine(activeLineNumber);
+    const shouldCenter = centerNextRevealRef.current;
+    centerNextRevealRef.current = false;
+    syncEditorToLine(activeLineNumber, 1, { center: shouldCenter });
   }, [activeLineNumber, currentStepIndex, syncEditorToLine]);
 
   useEffect(() => {
@@ -1257,7 +1286,6 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     explanationNode.replaceChildren(titleNode, bodyNode);
     explanationPositionRef.current = new monaco.Position(activeLineNumber, 1);
     editor.layoutContentWidget(explanationWidget);
-    syncEditorToLine(activeLineNumber);
   }, [
     activeLineNumber,
     classroomFrame.explanation,
@@ -1335,6 +1363,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       logExecutionTrace(nextTrace, {
         trigger: "runCode",
       });
+      centerNextRevealRef.current = true;
       setTrace(nextTrace);
       setExecutionElapsedMs(nextTrace.executionTime);
       setRuntimeHealth((current) => ({
@@ -1680,6 +1709,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     stopPlayback();
     setActiveWorkspaceTab(tab);
     setActiveRailSection(section);
+    centerNextRevealRef.current = true;
     startTransition(() => {
       setCurrentStepIndex(
         Math.max(0, Math.min(nextIndex, Math.max(playbackFrames.length - 1, 0))),
@@ -1711,9 +1741,12 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     closeWorkspacePanels();
     setActiveWorkspaceTab("visualizer");
     setActiveRailSection("flow");
+    centerNextRevealRef.current = true;
 
     if (!isPlaying && currentStepIndex >= playbackFrames.length - 1) {
       setCurrentStepIndex(0);
+    } else if (!isPlaying && activeLineNumber) {
+      syncEditorToLine(activeLineNumber, 1, { center: true });
     }
 
     if (!isPlaying && user?.id) {

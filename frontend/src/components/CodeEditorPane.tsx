@@ -61,9 +61,64 @@ export const CodeEditorPane = ({
   const decorationsRef =
     useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
+  const revealFrameRef = useRef<number | null>(null);
   const explanationNodeRef = useRef<HTMLDivElement | null>(null);
   const explanationPositionRef = useRef<Monaco.Position | null>(null);
   const explanationWidgetRef = useRef<Monaco.editor.IContentWidget | null>(null);
+
+  const syncEditorToLine = (lineNumber: number, column = 1) => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+
+    if (!editor || !monaco || lineNumber < 1) {
+      return;
+    }
+
+    if (typeof revealFrameRef.current === "number") {
+      window.cancelAnimationFrame(revealFrameRef.current);
+    }
+
+    revealFrameRef.current = window.requestAnimationFrame(() => {
+      const safeColumn = Math.max(1, column);
+      const model = editor.getModel();
+      const targetLine = model
+        ? Math.min(Math.max(lineNumber, 1), model.getLineCount())
+        : lineNumber;
+      const visibleRange = editor.getVisibleRanges()[0];
+      const visibleLineCount = visibleRange
+        ? visibleRange.endLineNumber - visibleRange.startLineNumber + 1
+        : 0;
+      const edgeBuffer = Math.max(3, Math.ceil(visibleLineCount * 0.22));
+      const isVisible = visibleRange
+        ? targetLine >= visibleRange.startLineNumber &&
+          targetLine <= visibleRange.endLineNumber
+        : false;
+      const isNearViewportEdge =
+        !visibleRange ||
+        targetLine <= visibleRange.startLineNumber + edgeBuffer ||
+        targetLine >= visibleRange.endLineNumber - edgeBuffer;
+
+      editor.setPosition({ lineNumber: targetLine, column: safeColumn });
+
+      if (!isVisible || isNearViewportEdge) {
+        const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight);
+        const editorHeight = editor.getLayoutInfo().height;
+        const centeredTop = Math.max(
+          0,
+          editor.getTopForLineNumber(targetLine) -
+            editorHeight / 2 +
+            lineHeight / 2,
+        );
+
+        editor.setScrollTop(centeredTop, monaco.editor.ScrollType.Smooth);
+        editor.revealLineInCenter(targetLine, monaco.editor.ScrollType.Smooth);
+      } else {
+        editor.revealLine(targetLine, monaco.editor.ScrollType.Smooth);
+      }
+
+      revealFrameRef.current = null;
+    });
+  };
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -114,7 +169,7 @@ export const CodeEditorPane = ({
         },
       },
     ]);
-    editor.revealLineInCenter(activeLine);
+    syncEditorToLine(activeLine);
   }, [activeLine]);
 
   useEffect(() => {
@@ -156,6 +211,10 @@ export const CodeEditorPane = ({
 
   useEffect(
     () => () => {
+      if (typeof revealFrameRef.current === "number") {
+        window.cancelAnimationFrame(revealFrameRef.current);
+      }
+
       if (editorRef.current && explanationWidgetRef.current) {
         editorRef.current.removeContentWidget(explanationWidgetRef.current);
       }

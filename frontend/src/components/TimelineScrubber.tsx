@@ -21,7 +21,10 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
 const getStepLineNumber = (step: ExecutionStep | null | undefined) => {
-  const candidate = step?.line ?? step?.lineNumber ?? 0;
+  const candidate =
+    typeof step?.line === "number" && step.line > 0
+      ? step.line
+      : step?.lineNumber ?? 0;
   return candidate > 0 ? candidate : null;
 };
 

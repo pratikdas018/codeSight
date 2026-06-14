@@ -162,6 +162,12 @@ button {
     inset 0 0 18px rgba(114, 255, 112, 0.08),
     0 0 22px rgba(114, 255, 112, 0.1);
   animation: codesight-line-pulse 1.6s ease-in-out infinite;
+  outline: 1px solid rgba(114, 255, 112, 0.08);
+  outline-offset: -1px;
+  transition:
+    background-color 180ms ease-out,
+    box-shadow 180ms ease-out,
+    outline-color 180ms ease-out;
 }
 
 .current-execution-gutter {
