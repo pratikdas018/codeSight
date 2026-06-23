@@ -1326,6 +1326,8 @@ handleIpc("window:close", async (event) => {
   getSenderWindow(event)?.close();
 });
 
+handleIpc("desktop:get-app-version", () => app.getVersion());
+
 handleIpc("desktop:get-update-state", async () => updateService?.getState() ?? null);
 
 handleIpc(

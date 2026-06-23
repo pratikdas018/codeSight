@@ -24,6 +24,16 @@ export const useAutoUpdate = () => {
         }
       : defaultDesktopUpdateState,
   );
+
+  useEffect(() => {
+    if (!isDesktop || !window.electronAPI?.getAppVersion) {
+      return;
+    }
+
+    void window.electronAPI.getAppVersion().then((version) => {
+      setUpdateState((prev) => ({ ...prev, currentVersion: version }));
+    });
+  }, [isDesktop]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const previousStatusRef = useRef<UpdateStatus>(updateState.status);
 

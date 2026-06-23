@@ -57,7 +57,7 @@ app.use(
     crossOriginEmbedderPolicy: false,
   }),
 );
-app.options("/(.*)", cors(corsOptions));
+app.options("{*path}", cors(corsOptions));
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: env.bodyLimit }));

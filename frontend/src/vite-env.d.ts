@@ -113,6 +113,7 @@ interface Window {
     }) => Promise<LocalSnippetRecord>;
     getLocalSnippets: () => Promise<LocalSnippetRecord[]>;
     getRecentFiles: () => Promise<RecentFileRecord[]>;
+    getAppVersion: () => Promise<string>;
     getUpdateState: () => Promise<import("./utils/updates").UpdateState | null>;
     checkForUpdates: () => Promise<import("./utils/updates").UpdateState | null>;
     downloadUpdate: () => Promise<import("./utils/updates").UpdateState | null>;

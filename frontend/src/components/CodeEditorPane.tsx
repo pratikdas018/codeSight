@@ -317,7 +317,7 @@ export const CodeEditorPane = ({
         </button>
       </div>
 
-      <div className="min-h-[420px] flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <Editor
           height="100%"
           defaultLanguage={monacoLanguageMap[language]}

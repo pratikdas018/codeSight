@@ -107,7 +107,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       process.env.VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED,
     siteUrl: process.env.VITE_SITE_URL,
     platform: process.platform,
-    version: process.env.npm_package_version ?? "1.0.0",
+    version: process.env.npm_package_version,
     logging: {
       level: preloadLogLevel,
       verbose: verboseLoggingEnabled,
@@ -136,6 +136,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getLocalSnippets: () => ipcRenderer.invoke("desktop:get-local-snippets"),
   openLocalSnippet: () => ipcRenderer.invoke("desktop:open-local-snippet"),
   getRecentFiles: () => ipcRenderer.invoke("desktop:get-recent-files"),
+  getAppVersion: () => ipcRenderer.invoke("desktop:get-app-version") as Promise<string>,
   getUpdateState: () => ipcRenderer.invoke("desktop:get-update-state"),
   checkForUpdates: () => ipcRenderer.invoke("desktop:check-for-updates"),
   downloadUpdate: () => ipcRenderer.invoke("desktop:download-update"),
