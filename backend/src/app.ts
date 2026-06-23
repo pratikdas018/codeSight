@@ -19,6 +19,20 @@ const isOriginAllowed = (origin?: string) =>
   env.frontendOrigins.length === 0 ||
   env.frontendOrigins.includes(origin);
 
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("Origin not allowed by CORS."));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
 const executeLimiter = rateLimit({
   windowMs: env.rateLimitWindowMs,
   limit: env.rateLimitMax,
@@ -43,19 +57,8 @@ app.use(
     crossOriginEmbedderPolicy: false,
   }),
 );
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (isOriginAllowed(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error("Origin not allowed by CORS."));
-    },
-    credentials: true,
-  }),
-);
+app.options("*", cors(corsOptions));
+app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: env.bodyLimit }));
 
