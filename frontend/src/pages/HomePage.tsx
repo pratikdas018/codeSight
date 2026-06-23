@@ -2113,94 +2113,72 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
               <CodeSightLogo compact />
             </button>
 
-            <div className="hidden items-center gap-2 rounded-[1.1rem] border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] p-1 md:flex">
+            <div className="hidden items-center gap-1 rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] p-1 md:flex">
               <button
                 type="button"
                 onClick={() => scrollToSection("guide", "explorer")}
                 className={clsx(
-                  "rounded-[0.9rem] px-4 py-2 text-sm transition",
-                  activeRailSection === "guide"
-                    ? "bg-[rgba(114,255,112,0.12)] text-[var(--cs-primary-bright)] shadow-[0_0_18px_rgba(114,255,112,0.08)]"
+                  "rounded-lg px-3 py-1.5 text-sm transition",
+                  activeRailSection === "guide" || activeRailSection === "flow"
+                    ? "bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]"
                     : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]",
                 )}
               >
-                Explorer
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollToSection("flow", "visualizer")}
-                className={clsx(
-                  "rounded-[0.9rem] px-4 py-2 text-sm transition",
-                  activeRailSection === "flow"
-                    ? "bg-[rgba(114,255,112,0.12)] text-[var(--cs-primary-bright)] shadow-[0_0_18px_rgba(114,255,112,0.08)]"
-                    : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]",
-                )}
-              >
-                Debugger
+                Workbench
               </button>
               <button
                 type="button"
                 onClick={() => scrollToSection("library", "explorer")}
                 className={clsx(
-                  "rounded-[0.9rem] px-4 py-2 text-sm transition",
+                  "rounded-lg px-3 py-1.5 text-sm transition",
                   activeRailSection === "library"
-                    ? "bg-[rgba(114,255,112,0.12)] text-[var(--cs-primary-bright)] shadow-[0_0_18px_rgba(114,255,112,0.08)]"
+                    ? "bg-[rgba(114,255,112,0.1)] text-[var(--cs-primary-bright)]"
                     : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]",
                 )}
               >
-                Terminal
+                History
               </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <label className="hidden items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-sm text-[var(--cs-text-muted)] md:flex">
-              <span className="text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Runtime</span>
-              <select
-                value={language}
-                onChange={(event) => handleLanguageChange(event.target.value as SupportedLanguage)}
-                className="bg-transparent text-sm text-[var(--cs-text)] outline-none"
-              >
-                {Object.entries(languageLabels).map(([value, label]) => (
-                  <option key={value} value={value} className="bg-[#0b0f0b] text-[var(--cs-text)]">
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="flex items-center gap-2">
+            {/* Language selector — compact, no label */}
+            <select
+              value={language}
+              onChange={(event) => handleLanguageChange(event.target.value as SupportedLanguage)}
+              className="hidden h-9 rounded-lg border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-2 text-sm text-[var(--cs-text-muted)] outline-none transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)] md:block"
+            >
+              {Object.entries(languageLabels).map(([value, label]) => (
+                <option key={value} value={value} className="bg-[#0b0f0b]">
+                  {label}
+                </option>
+              ))}
+            </select>
 
             <button
               type="button"
-              onClick={handleExport}
-              className="cs-button h-10 rounded-xl px-3"
-            >
-              Export
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void saveCode();
-              }}
+              onClick={() => { void saveCode(); }}
               disabled={isSaving}
-              className="cs-button h-10 rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
+              className="cs-button h-9 rounded-lg px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving ? "Saving..." : "Save"}
+              {isSaving ? "Saving…" : "Save"}
             </button>
+
             <button
               type="button"
-              onClick={() => {
-                void runCode();
-              }}
+              onClick={() => { void runCode(); }}
               disabled={isExecuting}
-              className="cs-button cs-button-primary h-10 rounded-xl px-4 disabled:cursor-not-allowed disabled:opacity-60"
+              className="cs-button cs-button-primary h-9 rounded-lg px-4 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span className="material-symbols-outlined text-[18px]">play_arrow</span>
-              {isExecuting ? "Running..." : "Run trace"}
+              <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+              {isExecuting ? "Running…" : "Run trace"}
             </button>
+
+            {/* Account avatar */}
             <button
               type="button"
               onClick={() => scrollToSection("account", "explorer")}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-sm font-semibold text-[var(--cs-text)] transition hover:border-[var(--cs-border-strong)]"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] text-sm font-semibold text-[var(--cs-text)] transition hover:border-[var(--cs-border-strong)]"
             >
               {accountInitial}
             </button>
@@ -2276,62 +2254,33 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
             {!isSidebarCollapsed ? (
               <div className="hidden border-t border-[var(--cs-border)] pt-3 xl:block">
                 <div className="px-1">
-                  <div className="text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Workspace</div>
-                  <div className="mt-2 text-sm text-[var(--cs-text)]">{runStateLabel}</div>
-                  <div className="mt-1 text-xs leading-5 text-[var(--cs-text-subtle)]">
+                  <div className="truncate text-[11px] text-[var(--cs-text-subtle)]">
                     {desktopFileName ?? languageFiles[language]}
                   </div>
                 </div>
                 {isDesktop ? (
-                  <div className="mt-3 space-y-2">
-                    <button type="button" onClick={createNewDesktopFile} className="cs-button w-full justify-start rounded-xl px-3">
+                  <div className="mt-2 space-y-1">
+                    <button type="button" onClick={createNewDesktopFile} className="cs-button w-full justify-start rounded-lg px-3 text-sm">
                       New file
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        void openDesktopFile();
-                      }}
+                      onClick={() => { void openDesktopFile(); }}
                       disabled={isManagingDesktopFiles}
-                      className="cs-button w-full justify-start rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="cs-button w-full justify-start rounded-lg px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      Open file
+                      Open
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        void saveDesktopFile();
-                      }}
+                      onClick={() => { void saveDesktopFile(); }}
                       disabled={isManagingDesktopFiles}
-                      className="cs-button w-full justify-start rounded-xl px-3 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="cs-button w-full justify-start rounded-lg px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Save file
                     </button>
                   </div>
                 ) : null}
-
-                <div className="mt-4 space-y-2 border-t border-[var(--cs-border)] pt-3">
-                  <button
-                    type="button"
-                    onClick={openHelpPanel}
-                    aria-haspopup="dialog"
-                    aria-expanded={isHelpOpen}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--cs-text-muted)] transition hover:bg-[rgba(255,255,255,0.02)] hover:text-[var(--cs-text)]"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">help_outline</span>
-                    Help
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openFeedbackPanel}
-                    aria-haspopup="dialog"
-                    aria-expanded={isFeedbackOpen}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--cs-text-muted)] transition hover:bg-[rgba(255,255,255,0.02)] hover:text-[var(--cs-text)]"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">chat_bubble_outline</span>
-                    Feedback
-                  </button>
-                </div>
               </div>
             ) : null}
           </aside>
@@ -2342,18 +2291,51 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
             transition={{ duration: 0.24, ease: "easeOut" }}
             className="cs-panel cs-panel-strong flex min-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-[1.9rem] shadow-[0_24px_70px_rgba(0,0,0,0.45)]"
           >
-            <div className="border-b border-[var(--cs-border)] bg-[linear-gradient(180deg,rgba(12,14,12,0.98),rgba(10,12,10,0.94))] px-4 py-4 sm:px-5">
-              <div className="mb-4 flex items-center gap-2 border-b border-[var(--cs-border)] pb-3">
-                <div className="flex items-center gap-2 rounded-t-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.025)] px-3 py-1.5 text-xs text-[var(--cs-primary-bright)] shadow-[0_12px_26px_rgba(0,0,0,0.2)]">
-                  <span className="material-symbols-outlined text-[14px]">description</span>
-                  {desktopFileName ?? languageFiles[language]}
-                  <span className="material-symbols-outlined text-[14px] text-[var(--cs-text-subtle)]">close</span>
-                </div>
-                <div className="hidden items-center gap-2 rounded-t-xl px-3 py-1.5 text-xs text-[var(--cs-text-subtle)] md:flex">
-                  <span className="material-symbols-outlined text-[14px]">code</span>
-                  {languageLabels[language]}
+            <div className="border-b border-[var(--cs-border)] bg-[rgba(10,12,10,0.96)] px-4 py-3 sm:px-5">
+              {/* Title row */}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Untitled"
+                  className="min-w-0 flex-1 border-none bg-transparent text-base font-semibold tracking-[-0.02em] text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-subtle)]"
+                />
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowProgramInput((current) => !current)}
+                    className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--cs-border)] px-2.5 text-[11px] uppercase tracking-[0.14em] text-[var(--cs-text-subtle)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)]"
+                    title="Toggle stdin input"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">input</span>
+                    <span className="hidden sm:inline">Stdin</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFocusMode((current) => !current);
+                      setNotice({
+                        tone: "success",
+                        message: focusMode ? "Balanced layout restored." : "Learning mode on.",
+                      });
+                    }}
+                    className={clsx(
+                      "flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] uppercase tracking-[0.14em] transition",
+                      focusMode
+                        ? "border-[rgba(114,255,112,0.2)] bg-[rgba(114,255,112,0.08)] text-[var(--cs-primary-bright)]"
+                        : "border-[var(--cs-border)] text-[var(--cs-text-subtle)] hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)]",
+                    )}
+                    title={focusMode ? "Exit learning mode" : "Enter learning mode"}
+                  >
+                    <span className="material-symbols-outlined text-[13px]">
+                      {focusMode ? "menu_book" : "menu_book"}
+                    </span>
+                    <span className="hidden sm:inline">{focusMode ? "Learning" : "Learn"}</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Compact playback dock */}
               <PlaybackDock
                 steps={playbackFrames}
                 currentStepIndex={currentStepIndex}
@@ -2371,70 +2353,13 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 onTogglePlayback={handleTogglePlayback}
                 onPausePlayback={stopPlayback}
               />
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0 flex-1">
-                  <input
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder="Snippet title"
-                    className="w-full border-none bg-transparent text-[clamp(1.25rem,1.05rem+0.55vw,1.9rem)] font-semibold tracking-[-0.05em] text-[var(--cs-text)] outline-none placeholder:text-[var(--cs-text-subtle)]"
-                  />
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--cs-text-muted)]">
-                    {primaryStatus}
-                  </p>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--cs-text-subtle)]">
-                    {secondaryStatus}
-                  </p>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={focusEditorForPaste} className="cs-button rounded-xl px-3">
-                    Focus editor
-                  </button>
-                  <button type="button" onClick={loadStarterExample} className="cs-button rounded-xl px-3">
-                    Example
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFocusMode((current) => !current);
-                      setNotice({
-                        tone: "success",
-                        message: focusMode
-                          ? "Balanced layout restored."
-                          : "Focus mode enabled. The editor stays dominant while the teaching panels soften.",
-                      });
-                    }}
-                    className={clsx(
-                      "cs-button rounded-xl px-3",
-                      focusMode ? "border-[rgba(114,255,112,0.22)] bg-[rgba(114,255,112,0.08)] text-[var(--cs-primary-bright)]" : "",
-                    )}
-                  >
-                    {focusMode ? "Focus mode" : "Balanced mode"}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--cs-border)] px-4 py-3 text-sm sm:px-5">
-              <span className="rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[var(--cs-text)]">
-                {languageRunLabels[language]}
-              </span>
-              <span className="rounded-full border border-[rgba(114,255,112,0.12)] bg-[rgba(114,255,112,0.06)] px-3 py-1.5 text-[var(--cs-primary-soft)]">
-                {runStateDetail}
-              </span>
-              {conciseVariables.length > 0 ? (
-                <span className="rounded-full border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[var(--cs-text-muted)]">
-                  {conciseVariables.length} tracked variables
-                </span>
+              {/* Single-line status — replaces the badge strip */}
+              {runStateDetail ? (
+                <p className="mt-2 truncate text-xs text-[var(--cs-text-subtle)]">
+                  {runStateDetail}
+                </p>
               ) : null}
-              <button
-                type="button"
-                onClick={() => setShowProgramInput((current) => !current)}
-                className="ml-auto rounded-full border border-[var(--cs-border)] px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-[var(--cs-text-muted)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)]"
-              >
-                {showProgramInput ? "Hide input" : "Show input"}
-              </button>
             </div>
 
             {showProgramInput ? (
@@ -2699,28 +2624,45 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                   <div className="rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] p-4">
                     <div className="text-xs uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Signed in</div>
                     <div className="mt-2 text-sm text-[var(--cs-text)]">{user?.email ?? "Authenticated user"}</div>
-                    <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">
-                      This workspace is only available after a valid CodeSight session is restored.
-                    </p>
                     {user?.isAdmin ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          window.location.hash = "#/admin";
-                        }}
-                        className="cs-button mt-4 w-full rounded-xl px-3"
+                        onClick={() => { window.location.hash = "#/admin"; }}
+                        className="cs-button mt-3 w-full rounded-lg px-3 text-sm"
                       >
-                        Open admin dashboard
+                        Admin dashboard
                       </button>
                     ) : null}
                     <button
                       type="button"
-                      onClick={() => {
-                        void handleLogout();
-                      }}
-                      className="cs-button mt-4 rounded-xl px-3"
+                      onClick={() => { void handleLogout(); }}
+                      className="cs-button mt-2 rounded-lg px-3 text-sm"
                     >
                       Log out
+                    </button>
+                  </div>
+
+                  {/* Help & Feedback — moved from sidebar rail */}
+                  <div className="space-y-1 rounded-xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] p-2">
+                    <button
+                      type="button"
+                      onClick={openHelpPanel}
+                      aria-haspopup="dialog"
+                      aria-expanded={isHelpOpen}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-[var(--cs-text-muted)] transition hover:bg-[rgba(255,255,255,0.03)] hover:text-[var(--cs-text)]"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">help_outline</span>
+                      Help &amp; docs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openFeedbackPanel}
+                      aria-haspopup="dialog"
+                      aria-expanded={isFeedbackOpen}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-[var(--cs-text-muted)] transition hover:bg-[rgba(255,255,255,0.03)] hover:text-[var(--cs-text)]"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">chat_bubble_outline</span>
+                      Send feedback
                     </button>
                   </div>
                 </section>
@@ -2756,13 +2698,14 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         languageLabel={languageLabels[language]}
         executionStatusLabel={footerExecutionLabel}
         executionStatusTone={footerExecutionTone}
-        executionTimeLabel={footerExecutionTime}
-        memoryUsageLabel={footerMemoryUsage}
         currentLineLabel={footerCurrentLine}
+        frameLabel={
+          playbackFrames.length > 0
+            ? `Frame ${currentStepIndex + 1}/${playbackFrames.length}`
+            : ""
+        }
         runtimeLabel={runtimeLabel}
         runtimeTone={runtimeTone}
-        runtimePulse={runtimeHealth.connection !== "online"}
-        runtimeIcon={runtimeIcon}
         appVersionLabel={appVersionLabel}
         themeMode={themeMode}
         onThemeToggle={() =>
