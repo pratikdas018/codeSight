@@ -28,6 +28,29 @@ const getStepLineNumber = (step: ExecutionStep | null | undefined) => {
   return candidate > 0 ? candidate : null;
 };
 
+const markerColor = (step: ExecutionStep) => {
+  switch (step.eventType) {
+    case "FUNCTION_CALL":
+    case "RECURSION_ENTER":
+      return "#60a5fa";
+    case "FUNCTION_RETURN":
+    case "RECURSION_RETURN":
+      return "#c084fc";
+    case "OUTPUT":
+      return "#fbbf24";
+    case "MEMORY_ALLOCATE":
+    case "MEMORY_FREE":
+    case "POINTER_UPDATE":
+      return "#fb7185";
+    case "ASSIGNMENT":
+    case "VARIABLE_DECLARATION":
+    case "VARIABLE_UPDATE":
+      return "#72ff70";
+    default:
+      return null;
+  }
+};
+
 export const TimelineScrubber = ({
   steps,
   currentStepIndex,
@@ -54,6 +77,16 @@ export const TimelineScrubber = ({
       count === 1 ? 0 : index / (count - 1),
     );
   }, [totalSteps]);
+  const eventMarkers = useMemo(() => {
+    if (totalSteps < 2) return [];
+
+    const candidates = steps
+      .map((step, index) => ({ index, color: markerColor(step) }))
+      .filter((marker): marker is { index: number; color: string } => Boolean(marker.color));
+    const maxMarkers = 32;
+    const stride = Math.max(1, Math.ceil(candidates.length / maxMarkers));
+    return candidates.filter((_marker, index) => index % stride === 0).slice(0, maxMarkers);
+  }, [steps, totalSteps]);
 
   const positionToStepIndex = (clientX: number) => {
     const rail = railRef.current;
@@ -125,6 +158,20 @@ export const TimelineScrubber = ({
       event.preventDefault();
       onPausePlayback();
       onStepSelect(clamp(currentStepIndex + 1, 0, totalSteps - 1));
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      onPausePlayback();
+      onStepSelect(0);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      onPausePlayback();
+      onStepSelect(totalSteps - 1);
     }
   };
 
@@ -173,6 +220,15 @@ export const TimelineScrubber = ({
               />
             ))}
 
+            {eventMarkers.map(({ index, color }) => (
+              <div
+                key={`event-${index}`}
+                className="absolute top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{ left: `${(index / (totalSteps - 1)) * 100}%`, backgroundColor: color }}
+                title={`${steps[index]?.eventType?.replace(/_/g, " ").toLowerCase() ?? "execution event"} at frame ${index + 1}`}
+              />
+            ))}
+
             <motion.div
               className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[rgba(114,255,112,0.24)] bg-[var(--cs-primary-bright)] shadow-[0_0_18px_rgba(114,255,112,0.25)]"
               initial={false}
@@ -185,10 +241,10 @@ export const TimelineScrubber = ({
 
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2 px-2">
         <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-          {totalSteps > 0 ? `Frame ${activeIndex + 1}` : "Timeline idle"}
+          {totalSteps > 0 ? `Frame ${activeIndex + 1} / ${totalSteps}` : "Timeline idle"}
         </div>
         <div className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">
-          {activeLine ? `Line ${activeLine}` : "No line"}
+          {activeLine ? `Line ${activeLine}` : "No line"} · {Math.round(progress * 100)}%
         </div>
       </div>
     </div>
