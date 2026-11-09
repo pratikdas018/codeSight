@@ -38,6 +38,12 @@ const executeLimiter = rateLimit({
   limit: env.rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (_request, response) => {
+    response.setHeader("Retry-After", Math.ceil(env.rateLimitWindowMs / 1000));
+    response.status(429).json({
+      message: "Too many execution requests. Please wait before trying again.",
+    });
+  },
   message: {
     message: "Too many execution requests. Please wait a moment and try again.",
   },
@@ -51,6 +57,12 @@ app.use(
     quietReqLogger: !env.isProduction,
   }),
 );
+
+app.use((request, response, next) => {
+  const requestId = String(request.id);
+  response.setHeader("X-Request-ID", requestId);
+  next();
+});
 app.use(
   helmet({
     contentSecurityPolicy: false,
@@ -75,6 +87,19 @@ app.get("/health", async (_request, response, next) => {
     });
   } catch (error) {
     next(error);
+  }
+});
+
+app.get("/live", (_request, response) => {
+  response.json({ status: "ok", service: "api" });
+});
+
+app.get("/ready", async (_request, response) => {
+  try {
+    await getRuntimeManagerSnapshot();
+    response.json({ status: "ready", service: "api" });
+  } catch {
+    response.status(503).json({ status: "not_ready", service: "api" });
   }
 });
 

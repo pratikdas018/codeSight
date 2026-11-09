@@ -29,6 +29,34 @@ export interface RunCommandWithLimitsResult {
   durationMs: number;
 }
 
+const SAFE_CHILD_ENV_KEYS = [
+  "PATH",
+  "SystemRoot",
+  "WINDIR",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+  "HOME",
+  "USERPROFILE",
+  "LANG",
+  "LC_ALL",
+  "JAVA_HOME",
+] as const;
+
+const buildChildEnvironment = (overrides?: NodeJS.ProcessEnv) => {
+  const safeEnvironment: NodeJS.ProcessEnv = {};
+
+  for (const key of SAFE_CHILD_ENV_KEYS) {
+    if (process.env[key]) safeEnvironment[key] = process.env[key];
+  }
+
+  for (const [key, value] of Object.entries(overrides ?? {})) {
+    if (value !== undefined) safeEnvironment[key] = value;
+  }
+
+  return safeEnvironment;
+};
+
 const forceKillProcessTree = (
   child: ChildProcessWithoutNullStreams,
   logger?: StructuredLogger,
@@ -84,10 +112,7 @@ export const runCommandWithLimits = (
     });
     const child = spawn(options.command, options.args, {
       cwd: options.cwd,
-      env: {
-        ...process.env,
-        ...options.env,
-      },
+      env: buildChildEnvironment(options.env),
       detached: process.platform !== "win32",
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
@@ -160,6 +185,9 @@ export const runCommandWithLimits = (
     };
 
     const stopForBufferLimit = () => {
+      if (outputLimitExceeded) {
+        return;
+      }
       outputLimitExceeded = true;
       stderr = stderr.trim()
         ? `${stderr.trim()}\nOutput exceeded ${options.outputLimitBytes} bytes and was truncated.`

@@ -7,19 +7,37 @@ services:
     rootDir: .
     buildCommand: npm install && npm run build --prefix backend
     startCommand: npm run start --prefix backend
-    healthCheckPath: /health
+    healthCheckPath: /live
     envVars:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
         sync: false
       - key: TRUST_PROXY
-        value: true
+        value: "1"
       - key: EXECUTOR_MODE
         value: local
       - key: RATE_LIMIT_WINDOW_MS
         value: 60000
       - key: RATE_LIMIT_MAX
         value: 60
+      - key: REQUEST_BODY_LIMIT
+        value: 1mb
+      - key: MAX_CODE_BYTES
+        value: 524288
+      - key: MAX_STDIN_BYTES
+        value: 262144
+      - key: EXECUTION_QUEUE_CONCURRENCY
+        value: 2
+      - key: EXECUTION_QUEUE_DEPTH_LIMIT
+        value: 50
+      - key: EXECUTION_MAX_OUTPUT_BYTES
+        value: 4194304
+      - key: EXECUTION_MEMORY_LIMIT_MB
+        value: 512
+      - key: EXECUTION_CPU_LIMIT
+        value: 1
+      - key: EXECUTION_PIDS_LIMIT
+        value: 128
       - key: LOG_LEVEL
         value: info

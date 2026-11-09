@@ -3,10 +3,18 @@ const parseNumber = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const positiveNumber = (value: string | undefined, fallback: number, minimum = 1) =>
+  Math.max(minimum, parseNumber(value, fallback));
+
 const frontendOrigins = (process.env.FRONTEND_URL ?? "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+const trustProxy = process.env.TRUST_PROXY ?? "loopback";
+if (trustProxy === "true") {
+  console.warn("TRUST_PROXY=true trusts every proxy hop. Prefer a hop count or explicit trusted proxy configuration.");
+}
 
 const executorMode = (
   process.env.EXECUTOR_MODE ??
@@ -42,10 +50,12 @@ export const env = {
   isProduction: (process.env.NODE_ENV ?? "development") === "production",
   port: parseNumber(process.env.PORT, 4000),
   bodyLimit: process.env.REQUEST_BODY_LIMIT ?? "1mb",
+  maxCodeBytes: positiveNumber(process.env.MAX_CODE_BYTES, 512 * 1024),
+  maxStdinBytes: positiveNumber(process.env.MAX_STDIN_BYTES, 256 * 1024),
   frontendOrigins,
-  trustProxy: process.env.TRUST_PROXY ?? "loopback",
-  rateLimitWindowMs: parseNumber(process.env.RATE_LIMIT_WINDOW_MS, 60_000),
-  rateLimitMax: parseNumber(process.env.RATE_LIMIT_MAX, 60),
+  trustProxy,
+  rateLimitWindowMs: positiveNumber(process.env.RATE_LIMIT_WINDOW_MS, 60_000),
+  rateLimitMax: positiveNumber(process.env.RATE_LIMIT_MAX, 60),
   executorMode: executorMode === "remote" ? "remote" : "local",
   remoteExecutorUrl: process.env.REMOTE_EXECUTOR_URL?.trim() ?? "",
   remoteExecutorTimeoutMs: parseNumber(
