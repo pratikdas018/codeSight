@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#050505"/>
+  <path d="M0 0h1200v630H0z" fill="url(#g)" opacity=".7"/>
+  <g fill="none" stroke="#19351d" opacity=".55"><path d="M0 120h1200M0 240h1200M0 360h1200M0 480h1200M120 0v630M240 0v630M360 0v630M480 0v630M600 0v630M720 0v630M840 0v630M960 0v630M1080 0v630"/></g>
+  <rect x="92" y="98" width="76" height="76" rx="20" fill="#0c1c0e" stroke="#00ff41" stroke-width="3"/>
+  <path d="m124 119-17 17 17 17m12-34-8 34m16-34 17 17-17 17" fill="none" stroke="#00ff41" stroke-linecap="round" stroke-linejoin="round" stroke-width="6"/>
+  <text x="92" y="286" fill="#ebffe2" font-family="Arial, sans-serif" font-size="76" font-weight="700">CodeSight</text>
+  <text x="96" y="360" fill="#9aad9e" font-family="Arial, sans-serif" font-size="34">Visual code debugger and execution visualizer</text>
+  <text x="96" y="430" fill="#72ff70" font-family="Arial, sans-serif" font-size="25">Step through code · inspect state · understand flow</text>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#00ff41" stop-opacity=".16"/><stop offset=".55" stop-color="#050505" stop-opacity="0"/><stop offset="1" stop-color="#0b4c1a" stop-opacity=".35"/></linearGradient></defs>
+</svg>
