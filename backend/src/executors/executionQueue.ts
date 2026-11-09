@@ -5,6 +5,15 @@ interface QueueTask {
   reject: (reason?: unknown) => void;
 }
 
+export class ExecutionQueueFullError extends Error {
+  readonly code = "EXECUTION_QUEUE_FULL";
+
+  constructor() {
+    super("Execution queue is full. Please wait a moment and try again.");
+    this.name = "ExecutionQueueFullError";
+  }
+}
+
 export class ExecutionQueue {
   private readonly pending: QueueTask[] = [];
   private activeCount = 0;
@@ -28,9 +37,7 @@ export class ExecutionQueue {
 
   async enqueue<T>(run: (queueTimeMs: number) => Promise<T>): Promise<T> {
     if (this.pending.length >= this.depthLimit) {
-      throw new Error(
-        "Execution queue is full. Please wait a moment and try again.",
-      );
+      throw new ExecutionQueueFullError();
     }
 
     return new Promise<T>((resolve, reject) => {

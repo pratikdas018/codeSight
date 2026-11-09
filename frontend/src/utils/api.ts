@@ -6,25 +6,51 @@ export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ??
   "http://localhost:4000";
 
+const REQUEST_TIMEOUT_MS = 60_000;
+
 const request = async <T>(path: string, options: RequestInit = {}) => {
   const { headers, ...rest } = options;
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: {
-      "Content-Type": "application/json",
-      ...(headers ?? {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeoutHandle = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const externalSignal = options.signal;
+  const abortExternal = () => controller.abort();
+  externalSignal?.addEventListener("abort", abortExternal, { once: true });
 
-  const payload = (await response.json().catch(() => ({}))) as {
-    message?: string;
-  } & T;
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(headers ?? {}),
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error(payload.message ?? "Request failed.");
+    const payload = (await response.json().catch(() => ({}))) as {
+      message?: string;
+    } & T;
+
+    if (!response.ok) {
+      const error = new Error(payload.message ?? "Request failed.");
+      (error as Error & { status?: number }).status = response.status;
+      throw error;
+    }
+
+    return payload;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("The request timed out or was cancelled. Please try again.");
+    }
+    if (error instanceof TypeError && /fetch/i.test(error.message)) {
+      throw new Error(
+        `CodeSight could not reach its backend at ${API_BASE_URL}. Start the backend and try again.`,
+      );
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutHandle);
+    externalSignal?.removeEventListener("abort", abortExternal);
   }
-
-  return payload;
 };
 
 export const executeCodeRequest = (

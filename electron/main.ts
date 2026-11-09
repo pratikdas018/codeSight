@@ -322,6 +322,7 @@ const getRecentFilesStorePath = () =>
   path.join(app.getPath("userData"), recentFilesStoreName);
 const getAuthStorageStorePath = () =>
   path.join(app.getPath("userData"), "auth-storage.json");
+const maxLocalFileBytes = 5 * 1024 * 1024;
 const getBackendUrl = () =>
   shouldUseDevServer
     ? devBackendUrl
@@ -421,6 +422,22 @@ const handleIpc = <T>(
   ) => Promise<T> | T,
 ) => {
   ipcMain.handle(channel, async (event, payload) => {
+    const senderUrl = event.senderFrame?.url ?? "";
+    const splashUrl = pathToFileURL(getSplashPath()).toString();
+    const trustedSender =
+      senderUrl === splashUrl ||
+      (shouldUseDevServer
+        ? senderUrl.startsWith(devRendererUrl)
+        : senderUrl.startsWith("file://"));
+
+    if (!trustedSender) {
+      writeSystemLog("warn", "IPC", `Rejected IPC call from an untrusted renderer for ${channel}.`, {
+        channel,
+        senderUrl,
+      });
+      throw new Error("Untrusted renderer.");
+    }
+
     try {
       return await handler(event, payload);
     } catch (error) {
@@ -570,6 +587,14 @@ const updateRecentFiles = async (filePath: string) => {
 };
 
 const loadFileFromPath = async (filePath: string) => {
+  const fileInfo = await fs.stat(filePath);
+  if (!fileInfo.isFile()) {
+    throw new Error("The selected path is not a file.");
+  }
+  if (fileInfo.size > maxLocalFileBytes) {
+    throw new Error("Files larger than 5 MB cannot be opened in CodeSight.");
+  }
+
   const content = await fs.readFile(filePath, "utf8");
   const name = path.basename(filePath);
 
@@ -782,7 +807,7 @@ const createMainWindow = async () => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      devTools: true,
+      devTools: shouldUseDevServer || process.env.CODESIGHT_ENABLE_DEVTOOLS === "true",
       spellcheck: false,
     },
   });
@@ -1096,6 +1121,14 @@ handleIpc(
   async (_event, payload) => {
     const request = payload as { filePath?: string | null } | undefined;
     if (request?.filePath) {
+      const recentFiles = await readRecentFiles();
+      const requestedPath = path.resolve(request.filePath);
+      const isKnownFile = recentFiles.some(
+        (entry) => path.resolve(entry.filePath) === requestedPath,
+      );
+      if (!isKnownFile) {
+        throw new Error("This file must be selected through CodeSight before it can be opened.");
+      }
       return loadFileFromPath(request.filePath);
     }
 
@@ -1118,6 +1151,9 @@ handleIpc(
 
 handleIpc("desktop:save-file", async (_event, rawPayload) => {
   const payload = rawPayload as DesktopFilePayload;
+  if (Buffer.byteLength(payload.content ?? "", "utf8") > maxLocalFileBytes) {
+    throw new Error("Files larger than 5 MB cannot be saved from CodeSight.");
+  }
   let targetPath = payload.filePath ?? null;
 
   if (!targetPath) {
@@ -1135,6 +1171,12 @@ handleIpc("desktop:save-file", async (_event, rawPayload) => {
     }
 
     targetPath = saveResult.filePath;
+  } else {
+    const recentFiles = await readRecentFiles();
+    const requestedPath = path.resolve(targetPath);
+    if (!recentFiles.some((entry) => path.resolve(entry.filePath) === requestedPath)) {
+      throw new Error("This file must be opened through CodeSight before it can be overwritten.");
+    }
   }
 
   await fs.writeFile(targetPath, payload.content, "utf8");

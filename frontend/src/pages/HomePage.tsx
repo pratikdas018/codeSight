@@ -1352,6 +1352,10 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   }, [language, trace.diagnostics]);
 
   const runCode = async () => {
+    if (isExecuting) {
+      return;
+    }
+
     stopPlayback();
     executionStartedAtRef.current = Date.now();
     setExecutionElapsedMs(0);

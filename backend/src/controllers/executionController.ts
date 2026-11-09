@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { createStructuredLogger } from "../logging/logger";
 import { executeCode } from "../services/executeService";
+import { ExecutionQueueFullError } from "../executors/executionQueue";
+import { env } from "../config/env";
 import {
   createEmptyExecutionTrace,
   isSupportedLanguage,
@@ -30,6 +32,18 @@ export const execute = async (request: Request, response: Response) => {
     });
   }
 
+  if (Buffer.byteLength(code, "utf8") > env.maxCodeBytes) {
+    return response.status(413).json({
+      message: `Code exceeds the ${Math.ceil(env.maxCodeBytes / 1024)} KB limit.`,
+    });
+  }
+
+  if (Buffer.byteLength(stdin, "utf8") > env.maxStdinBytes) {
+    return response.status(413).json({
+      message: `Program input exceeds the ${Math.ceil(env.maxStdinBytes / 1024)} KB limit.`,
+    });
+  }
+
   if (!isSupportedLanguage(language)) {
     logger.warn("Rejected execution request because the language was unsupported.", {
       details: {
@@ -48,8 +62,13 @@ export const execute = async (request: Request, response: Response) => {
     const result = await executeCode(code, language, stdin);
     return response.json(result);
   } catch (error) {
+    if (error instanceof ExecutionQueueFullError) {
+      response.setHeader("Retry-After", "5");
+      return response.status(429).json({ message: error.message });
+    }
+
     const message =
-      error instanceof Error
+      !env.isProduction && error instanceof Error
         ? error.message
         : "Unable to execute code right now.";
     const trace = createEmptyExecutionTrace(language);

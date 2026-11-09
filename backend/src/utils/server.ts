@@ -1,15 +1,16 @@
 import type { Express } from "express";
+import type { Server } from "node:http";
 
 export const startHttpServer = (
   app: Express,
   port: number,
   label: string,
   host?: string,
-) =>
-  new Promise<void>((resolve, reject) => {
+) : Promise<Server> =>
+  new Promise<Server>((resolve, reject) => {
     const server = host
-      ? app.listen(port, host, () => resolve())
-      : app.listen(port, () => resolve());
+      ? app.listen(port, host, () => resolve(server))
+      : app.listen(port, () => resolve(server));
 
     server.on("error", reject);
     server.on("listening", () => {
