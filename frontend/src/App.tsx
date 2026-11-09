@@ -11,6 +11,7 @@ import { hasSupabaseConfig, SUPABASE_CONFIG_ERROR } from "./lib/supabase";
 import { captureCrashReportSafe, trackUserActivitySafe } from "./services/analyticsService";
 import { createRendererLogger, logStructuredEntry } from "./utils/logger";
 import type { Notice } from "./utils/types";
+import { Seo } from "./seo";
 
 const HomePage = lazy(() =>
   import("./pages/HomePage").then((module) => ({
@@ -73,6 +74,7 @@ const App = () => {
     resendConfirmation,
   } = useAuth();
   const adminAccess = useAdminAccess();
+  const seo = <Seo />;
 
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
@@ -143,20 +145,29 @@ const App = () => {
 
   if (!hasSupabaseConfig) {
     return (
-      <AppStatusScreen
-        eyebrow="Configuration"
-        title="Supabase is required to open CodeSight."
-        description={SUPABASE_CONFIG_ERROR}
-      />
+      <>
+        {seo}
+        <AppStatusScreen
+          eyebrow="Configuration"
+          title="Supabase is required to open CodeSight."
+          description={SUPABASE_CONFIG_ERROR}
+        />
+      </>
     );
   }
 
   if (isAuthConfirmRoute) {
-    return <AuthConfirmScreen />;
+    return (
+      <>
+        {seo}
+        <AuthConfirmScreen />
+      </>
+    );
   }
 
   return (
     <>
+      {seo}
       <Routes>
         <Route
           path="/"
