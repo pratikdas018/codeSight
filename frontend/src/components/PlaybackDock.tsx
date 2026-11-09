@@ -15,11 +15,14 @@ interface PlaybackDockProps {
   onStepScrub: (nextIndex: number) => void;
   onPrevious: () => void;
   onNext: () => void;
+  onFirst: () => void;
+  onLast: () => void;
+  onRestart: () => void;
   onTogglePlayback: () => void;
   onPausePlayback: () => void;
 }
 
-const SPEED_STEPS = [0.5, 1, 1.5, 2, 2.5];
+const SPEED_STEPS = [0.25, 0.5, 1, 1.5, 2, 4];
 
 const cycleSpeed = (current: number, steps: number[]) => {
   const idx = steps.indexOf(current);
@@ -35,6 +38,9 @@ export const PlaybackDock = ({
   onStepScrub,
   onPrevious,
   onNext,
+  onFirst,
+  onLast,
+  onRestart,
   onTogglePlayback,
   onPausePlayback,
 }: PlaybackDockProps) => {
@@ -56,6 +62,17 @@ export const PlaybackDock = ({
 
         <button
           type="button"
+          onClick={onFirst}
+          disabled={!hasTrace || currentStepIndex <= 0}
+          className="hidden h-7 w-7 items-center justify-center rounded-lg text-[var(--cs-text-subtle)] transition hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-30 sm:flex"
+          aria-label="Jump to first frame"
+          title="First frame (Home)"
+        >
+          <span className="material-symbols-outlined text-[16px]">first_page</span>
+        </button>
+
+        <button
+          type="button"
           onClick={onTogglePlayback}
           disabled={!hasTrace}
           className={clsx(
@@ -69,6 +86,17 @@ export const PlaybackDock = ({
           <span className="material-symbols-outlined text-[18px]">
             {isPlaying ? "pause" : "play_arrow"}
           </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onLast}
+          disabled={!hasTrace || currentStepIndex >= steps.length - 1}
+          className="hidden h-7 w-7 items-center justify-center rounded-lg text-[var(--cs-text-subtle)] transition hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-30 sm:flex"
+          aria-label="Jump to final frame"
+          title="Final frame (End)"
+        >
+          <span className="material-symbols-outlined text-[16px]">last_page</span>
         </button>
 
         <button
@@ -105,7 +133,7 @@ export const PlaybackDock = ({
           onClick={() => onPlaybackRateChange(cycleSpeed(playbackRate, SPEED_STEPS))}
           className="hidden h-6 rounded-md border border-[var(--cs-border)] bg-transparent px-2 font-mono text-[10px] text-[var(--cs-text-subtle)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)] sm:flex sm:items-center"
           aria-label={`Playback speed ${playbackRate}x — click to cycle`}
-          title="Click to cycle playback speed"
+          title="Click to cycle playback speed: 0.25x, 0.5x, 1x, 1.5x, 2x, 4x"
         >
           <motion.span
             key={playbackRate}
@@ -115,6 +143,16 @@ export const PlaybackDock = ({
           >
             {playbackRate % 1 === 0 ? `${playbackRate}x` : `${playbackRate}x`}
           </motion.span>
+        </button>
+        <button
+          type="button"
+          onClick={onRestart}
+          disabled={!hasTrace}
+          className="hidden h-6 rounded-md border border-[var(--cs-border)] px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--cs-text-subtle)] transition hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)] disabled:cursor-not-allowed disabled:opacity-30 sm:inline-flex sm:items-center"
+          aria-label="Restart execution playback"
+          title="Restart playback from the first frame"
+        >
+          Restart
         </button>
       </div>
     </div>

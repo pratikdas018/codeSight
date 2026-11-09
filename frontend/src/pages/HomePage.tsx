@@ -1733,6 +1733,24 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     jumpToPlaybackIndex(currentStepIndex + 1, "debugger", "variables");
   };
 
+  const handleFirst = () => {
+    if (playbackFrames.length > 0) {
+      jumpToPlaybackIndex(0, "visualizer", "flow");
+    }
+  };
+
+  const handleLast = () => {
+    if (playbackFrames.length > 0) {
+      jumpToPlaybackIndex(playbackFrames.length - 1, "visualizer", "flow");
+    }
+  };
+
+  const handleRestart = () => {
+    if (playbackFrames.length === 0) return;
+    jumpToPlaybackIndex(0, "visualizer", "flow");
+    setNotice({ tone: "success", message: "Playback restarted from the first captured frame." });
+  };
+
   const handleTogglePlayback = () => {
     if (playbackFrames.length === 0) {
       return;
@@ -1943,6 +1961,18 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         handlePrevious();
+        return;
+      }
+
+      if (event.key === "Home") {
+        event.preventDefault();
+        handleFirst();
+        return;
+      }
+
+      if (event.key === "End") {
+        event.preventDefault();
+        handleLast();
       }
     };
 
@@ -1952,6 +1982,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
     };
   }, [
     handleNext,
+    handleFirst,
+    handleLast,
+    handleRestart,
     handlePrevious,
     handleTogglePlayback,
     isDesktop,
@@ -2350,6 +2383,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 }}
                 onPrevious={handlePrevious}
                 onNext={handleNext}
+                onFirst={handleFirst}
+                onLast={handleLast}
+                onRestart={handleRestart}
                 onTogglePlayback={handleTogglePlayback}
                 onPausePlayback={stopPlayback}
               />
