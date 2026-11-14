@@ -132,8 +132,8 @@ const normalizeUpdateErrorMessage = (
 
   if (isConnectivityError(normalized)) {
     return action === "check"
-      ? "CodeSight could not check for updates. Verify your internet connection and try again."
-      : "CodeSight could not download the update because the network connection was interrupted.";
+      ? "AlgoLoom could not check for updates. Verify your internet connection and try again."
+      : "AlgoLoom could not download the update because the network connection was interrupted.";
   }
 
   if (isGitHubApiError(normalized)) {
@@ -143,8 +143,8 @@ const normalizeUpdateErrorMessage = (
   }
 
   return action === "check"
-    ? "CodeSight ran into a problem while checking for updates."
-    : "CodeSight ran into a problem while downloading the update.";
+    ? "AlgoLoom ran into a problem while checking for updates."
+    : "AlgoLoom ran into a problem while downloading the update.";
 };
 
 export class UpdateService {
@@ -373,7 +373,7 @@ export class UpdateService {
     autoUpdater.on("update-available", (info) => {
       this.setStateFromInfo(info, {
         status: "available",
-        message: `CodeSight v${info.version} is available.`,
+        message: `AlgoLoom v${info.version} is available.`,
         updateAvailable: true,
         updateDownloaded: false,
         progressPercent: 0,

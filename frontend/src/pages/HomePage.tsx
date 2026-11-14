@@ -66,7 +66,8 @@ import {
   formatMemoryUsage,
 } from "../utils/formatters";
 import { createRendererLogger, logExecutionTrace } from "../utils/logger";
-import { createExecutionClassroomFrame } from "../visualization/executionClassroom";
+import { createExecutionClassroomFrame, type ExplanationMode } from "../visualization/executionClassroom";
+import type { BrandTheme } from "../brand";
 
 const createClientLogId = () =>
   globalThis.crypto?.randomUUID?.() ??
@@ -104,7 +105,7 @@ const createEmptyTrace = (language: SupportedLanguage): ExecutionTrace => ({
   mode: {
     selected: "trace",
     autoSelected: true,
-    reason: "CodeSight has not analyzed this program yet.",
+    reason: "AlgoLoom has not analyzed this program yet.",
     traceStrategy: "full",
   },
   limits: {
@@ -171,7 +172,7 @@ const languageRunLabels: Record<SupportedLanguage, string> = {
 };
 
 type WorkspaceTab = "explorer" | "debugger" | "visualizer";
-type ThemeMode = "noctis" | "graphite";
+type ThemeMode = BrandTheme;
 type FooterTone = "neutral" | "info" | "success" | "warning" | "error";
 type SectionKey =
   | "guide"
@@ -198,6 +199,7 @@ const defaultRuntimeHealth: RuntimeHealthSnapshot = {
 const monacoThemeMap: Record<ThemeMode, string> = {
   noctis: "codesight-noctis",
   graphite: "codesight-graphite",
+  light: "algoloom-light",
 };
 
 const railItems: Array<{
@@ -387,6 +389,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const [activeRailSection, setActiveRailSection] =
     useState<SectionKey>("guide");
   const [focusMode, setFocusMode] = useState(false);
+  const [explanationMode, setExplanationMode] = useState<ExplanationMode>("beginner");
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showProgramInput, setShowProgramInput] = useState(false);
@@ -398,8 +401,9 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       return "noctis";
     }
 
-    return window.localStorage.getItem("codesight-theme") === "graphite"
-      ? "graphite"
+    const savedTheme = window.localStorage.getItem("codesight-theme");
+    return savedTheme === "graphite" || savedTheme === "light"
+      ? savedTheme
       : "noctis";
   });
   const [language, setLanguage] = useState<SupportedLanguage>("python");
@@ -465,6 +469,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
 
   useEffect(() => {
     document.documentElement.dataset.codesightTheme = themeMode;
+    document.documentElement.dataset.algoloomTheme = themeMode;
     window.localStorage.setItem("codesight-theme", themeMode);
     monacoRef.current?.editor.setTheme(monacoThemeMap[themeMode]);
   }, [themeMode]);
@@ -556,7 +561,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       setNotice({
         tone: "error",
         message:
-          "CodeSight could not refresh local runtime status. Make sure the embedded backend is still running.",
+          "AlgoLoom could not refresh local runtime status. Make sure the embedded backend is still running.",
       });
     } finally {
       setIsRefreshingRuntimeManager(false);
@@ -872,7 +877,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
 
       setNotice({
         tone: "success",
-        message: `Saved "${savedSnippet.title}" as a local CodeSight snippet.`,
+        message: `Saved "${savedSnippet.title}" as a local AlgoLoom snippet.`,
       });
     } catch (error) {
       rendererLogger.error("Local snippet save failed.", error, {
@@ -1200,6 +1205,29 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         "editorIndentGuide.activeBackground1": "#666666",
         "editorBracketMatch.background": "#00640014",
         "editorBracketMatch.border": "#7D7D7D",
+      },
+    });
+    monaco.editor.defineTheme("algoloom-light", {
+      base: "vs",
+      inherit: true,
+      rules: [
+        { token: "comment", foreground: "6B7280", fontStyle: "italic" },
+        { token: "keyword", foreground: "7C3AED" },
+        { token: "string", foreground: "0F766E" },
+        { token: "number", foreground: "0369A1" },
+        { token: "type.identifier", foreground: "0F766E" },
+        { token: "identifier", foreground: "1D4ED8" },
+        { token: "function", foreground: "92400E" },
+      ],
+      colors: {
+        "editor.background": "#F8FAFC",
+        "editor.foreground": "#182331",
+        "editorGutter.background": "#F8FAFC",
+        "editorLineNumber.foreground": "#94A3B8",
+        "editorLineNumber.activeForeground": "#334155",
+        "editor.selectionBackground": "#BAE6FD",
+        "editor.lineHighlightBackground": "#EAF5F5",
+        "editorCursor.foreground": "#0F766E",
       },
     });
     monaco.editor.setTheme(monacoThemeMap[themeMode]);
@@ -1902,7 +1930,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
       setNotice({
         tone: "success",
         message:
-          "Feedback submitted to CodeSight. Thanks for helping improve the product.",
+          "Feedback submitted to AlgoLoom. Thanks for helping improve the product.",
       });
     } catch (error) {
       rendererLogger.error("Feedback persistence failed.", error, {
@@ -2369,6 +2397,21 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                     </span>
                     <span className="hidden sm:inline">{focusMode ? "Learning" : "Learn"}</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setExplanationMode((current) => current === "beginner" ? "developer" : "beginner")}
+                    aria-pressed={explanationMode === "developer"}
+                    className={clsx(
+                      "flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] uppercase tracking-[0.14em] transition",
+                      explanationMode === "developer"
+                        ? "border-[rgba(66,184,232,0.25)] bg-[rgba(66,184,232,0.1)] text-sky-300"
+                        : "border-[var(--cs-border)] text-[var(--cs-text-subtle)] hover:border-[var(--cs-border-strong)] hover:text-[var(--cs-text)]",
+                    )}
+                    title="Switch between beginner explanations and developer runtime details"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">tune</span>
+                    <span className="hidden sm:inline">{explanationMode === "developer" ? "Developer" : "Beginner"}</span>
+                  </button>
                 </div>
               </div>
 
@@ -2393,6 +2436,13 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 onTogglePlayback={handleTogglePlayback}
                 onPausePlayback={stopPlayback}
               />
+
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] text-[var(--cs-text-subtle)]" aria-live="polite">
+                <span className="font-mono text-[var(--cs-primary-bright)]">{playbackFrames.length > 0 ? `Step ${currentStepIndex + 1} of ${playbackFrames.length}` : "Timeline idle"}</span>
+                <span>{activeLineNumber ? `Line ${activeLineNumber}` : "No source line"}</span>
+                <span>{currentFunctionName || "global scope"}</span>
+                <span>{explanationMode === "developer" ? "Developer detail" : "Beginner guidance"}</span>
+              </div>
 
               {/* Single-line status — replaces the badge strip */}
               {runStateDetail ? (
@@ -2715,6 +2765,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 frame={classroomFrame}
                 isExecuting={isExecuting}
                 focusMode={focusMode || isPlaying}
+                explanationMode={explanationMode}
                 onDiagnosticSelect={(diagnostic) => {
                   focusDiagnostic(diagnostic);
                   setActiveWorkspaceTab("visualizer");
@@ -2749,9 +2800,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         appVersionLabel={appVersionLabel}
         themeMode={themeMode}
         onThemeToggle={() =>
-          setThemeMode((current) =>
-            current === "noctis" ? "graphite" : "noctis",
-          )
+          setThemeMode((current) => (current === "light" ? "noctis" : "light"))
         }
         onOpenSettings={() => scrollToSection("account", "explorer")}
       />

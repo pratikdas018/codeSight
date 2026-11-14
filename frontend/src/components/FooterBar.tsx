@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 
 type FooterTone = "neutral" | "info" | "success" | "warning" | "error";
-type FooterThemeMode = "noctis" | "graphite";
+type FooterThemeMode = "noctis" | "graphite" | "light";
 
 interface FooterBarProps {
   languageLabel: string;
@@ -96,10 +96,10 @@ export const FooterBar = ({
           onClick={onThemeToggle}
           className="ml-2 flex h-6 w-6 items-center justify-center rounded-md text-[var(--cs-text-subtle)] transition hover:text-[var(--cs-text)]"
           aria-label="Toggle theme"
-          title={themeMode === "noctis" ? "Switch to Graphite" : "Switch to Noctis"}
+          title={themeMode === "light" ? "Switch to Midnight" : "Switch to Light"}
         >
           <span className="material-symbols-outlined text-[13px]">
-            {themeMode === "noctis" ? "dark_mode" : "contrast"}
+            {themeMode === "light" ? "dark_mode" : "light_mode"}
           </span>
         </button>
         <button

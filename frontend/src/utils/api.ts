@@ -43,7 +43,7 @@ const request = async <T>(path: string, options: RequestInit = {}) => {
     }
     if (error instanceof TypeError && /fetch/i.test(error.message)) {
       throw new Error(
-        `CodeSight could not reach its backend at ${API_BASE_URL}. Start the backend and try again.`,
+        `AlgoLoom could not reach its backend at ${API_BASE_URL}. Start the backend and try again.`,
       );
     }
     throw error;

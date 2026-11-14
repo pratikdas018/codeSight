@@ -62,7 +62,7 @@ export const AuthScreen = ({
       if (result.status === "pending_confirmation") {
         if (!emailConfirmationRequired) {
           const message =
-            "Supabase still requires email confirmation. Disable Confirm email in Supabase Auth, or set VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED=true so CodeSight matches your project.";
+            "Supabase still requires email confirmation. Disable Confirm email in Supabase Auth, or set VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED=true so AlgoLoom matches your project.";
           setFormError(message);
           onNotice({
             tone: "error",
@@ -85,7 +85,7 @@ export const AuthScreen = ({
         tone: "success",
         message:
           mode === "signup"
-            ? `Welcome to CodeSight, ${result.user.email}.`
+            ? `Welcome to AlgoLoom, ${result.user.email}.`
             : `Welcome back, ${result.user.email}.`,
       });
     } catch (error) {
@@ -145,7 +145,7 @@ export const AuthScreen = ({
                 Sign in before the workspace wakes up.
               </h1>
               <p className="mt-6 max-w-lg text-base leading-7 text-[#9aad9e] sm:text-lg">
-                CodeSight restores your Supabase session securely, protects the
+                AlgoLoom restores your Supabase session securely, protects the
                 workspace behind authentication, and brings you straight back to
                 your debugging flow when you return.
               </p>
@@ -328,7 +328,7 @@ export const AuthScreen = ({
                   </>
                 ) : (
                   <span>
-                    {mode === "login" ? "Log in to CodeSight" : "Create account"}
+                    {mode === "login" ? "Log in to AlgoLoom" : "Create account"}
                   </span>
                 )}
               </button>
@@ -338,8 +338,8 @@ export const AuthScreen = ({
               {mode === "login"
                 ? "Your workspace stays locked until a valid session is restored."
                 : emailConfirmationRequired
-                  ? "We'll use your email to create a secure CodeSight workspace."
-                  : "We'll create your CodeSight workspace and sign you in immediately."}
+                  ? "We'll use your email to create a secure AlgoLoom workspace."
+                  : "We'll create your AlgoLoom workspace and sign you in immediately."}
             </p>
           </motion.div>
         </section>

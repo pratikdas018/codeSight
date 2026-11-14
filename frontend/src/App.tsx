@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthConfirmScreen } from "./components/AuthConfirmScreen";
@@ -16,6 +16,36 @@ import { Seo } from "./seo";
 const HomePage = lazy(() =>
   import("./pages/HomePage").then((module) => ({
     default: module.HomePage,
+  })),
+);
+
+const PlatformShell = lazy(() =>
+  import("./components/platform/PlatformShell").then((module) => ({
+    default: module.PlatformShell,
+  })),
+);
+
+const PlatformModulePage = lazy(() =>
+  import("./pages/platform/PlatformModulePage").then((module) => ({
+    default: module.PlatformModulePage,
+  })),
+);
+
+const AlgorithmExplorerPage = lazy(() =>
+  import("./pages/platform/AlgorithmExplorerPage").then((module) => ({
+    default: module.AlgorithmExplorerPage,
+  })),
+);
+
+const DataStructureExplorerPage = lazy(() =>
+  import("./pages/platform/DataStructureExplorerPage").then((module) => ({
+    default: module.DataStructureExplorerPage,
+  })),
+);
+
+const LearnPage = lazy(() =>
+  import("./pages/platform/LearnPage").then((module) => ({
+    default: module.LearnPage,
   })),
 );
 
@@ -143,13 +173,15 @@ const App = () => {
     });
   }, [user?.id]);
 
-  if (!hasSupabaseConfig) {
+  const isPublicLearningRoute = window.location.pathname === "/learn";
+
+  if (!hasSupabaseConfig && !isPublicLearningRoute) {
     return (
       <>
         {seo}
         <AppStatusScreen
           eyebrow="Configuration"
-          title="Supabase is required to open CodeSight."
+          title="Supabase is required to open AlgoLoom."
           description={SUPABASE_CONFIG_ERROR}
         />
       </>
@@ -178,7 +210,7 @@ const App = () => {
                   <AppStatusScreen
                     eyebrow="Launching"
                     title="Restoring your secure desktop session."
-                    description="CodeSight checks for an existing Supabase session before the workspace can render."
+                    description="AlgoLoom checks for an existing Supabase session before the workspace can render."
                     showSpinner
                   />
                 </motion.div>
@@ -194,7 +226,7 @@ const App = () => {
                     fallback={
                       <AppStatusScreen
                         eyebrow="Workspace"
-                        title="Opening your CodeSight workspace."
+                        title="Opening your AlgoLoom workspace."
                         description="The authenticated workspace is loading."
                         showSpinner
                       />
@@ -240,7 +272,7 @@ const App = () => {
                   <AppStatusScreen
                     eyebrow="Admin"
                     title="Loading dashboard shell."
-                    description="CodeSight is streaming the admin workspace."
+                    description="AlgoLoom is streaming the admin workspace."
                     showSpinner
                   />
                 }
@@ -299,6 +331,70 @@ const App = () => {
             />
           </Route>
         </Route>
+        <Route
+          path="/playground"
+          element={
+            <ProtectedPlatformRoute isLoading={isLoading} isAuthenticated={Boolean(user)}>
+              <Suspense
+                fallback={
+                  <AppStatusScreen
+                    eyebrow="Playground"
+                    title="Opening your AlgoLoom playground."
+                    description="The existing execution workspace is loading."
+                    showSpinner
+                  />
+                }
+              >
+                <HomePage onGlobalNotice={setNotice} />
+              </Suspense>
+            </ProtectedPlatformRoute>
+          }
+        />
+        <Route
+          element={
+            <ProtectedPlatformRoute isLoading={isLoading} isAuthenticated={Boolean(user)}>
+              <Suspense
+                fallback={
+                  <AppStatusScreen
+                    eyebrow="AlgoLoom"
+                    title="Loading the platform shell."
+                    description="The platform navigation is loading."
+                    showSpinner
+                  />
+                }
+              >
+                <PlatformShell />
+              </Suspense>
+            </ProtectedPlatformRoute>
+          }
+        >
+          <Route path="/home" element={<PlatformModulePage moduleId="home" />} />
+          <Route path="/algorithms" element={<AlgorithmExplorerPage />} />
+          <Route path="/data-structures" element={<DataStructureExplorerPage />} />
+          <Route path="/compiler" element={<PlatformModulePage moduleId="compiler" />} />
+          <Route path="/sql-lab" element={<PlatformModulePage moduleId="sql-lab" />} />
+          <Route path="/tools" element={<PlatformModulePage moduleId="tools" />} />
+          <Route path="/resources" element={<PlatformModulePage moduleId="resources" />} />
+        </Route>
+        <Route
+          path="/learn"
+          element={
+            <Suspense
+              fallback={
+                <AppStatusScreen
+                  eyebrow="Learn"
+                  title="Opening your learning path."
+                  description="AlgoLoom is loading the lesson library."
+                  showSpinner
+                />
+              }
+            >
+              <PlatformShell />
+            </Suspense>
+          }
+        >
+          <Route index element={<LearnPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ToastViewport notice={notice} onDismiss={() => setNotice(null)} />
@@ -322,7 +418,7 @@ const ProtectedAdminRoute = ({
       <AppStatusScreen
         eyebrow="Admin"
         title="Validating admin session."
-        description="CodeSight is checking your session and role-based permissions."
+        description="AlgoLoom is checking your session and role-based permissions."
         showSpinner
       />
     );
@@ -336,13 +432,36 @@ const ProtectedAdminRoute = ({
     return (
       <AppStatusScreen
         eyebrow="Access denied"
-        title="This route is reserved for CodeSight admins."
+        title="This route is reserved for AlgoLoom admins."
         description="Set `profiles.is_admin = true` for your account in Supabase before opening the dashboard."
       />
     );
   }
 
   return <Outlet />;
+};
+
+const ProtectedPlatformRoute = ({
+  isLoading,
+  isAuthenticated,
+  children,
+}: {
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  children: ReactNode;
+}) => {
+  if (isLoading) {
+    return (
+      <AppStatusScreen
+        eyebrow="AlgoLoom"
+        title="Restoring your secure session."
+        description="The platform is checking your authenticated workspace."
+        showSpinner
+      />
+    );
+  }
+
+  return isAuthenticated ? children : <Navigate to="/" replace />;
 };
 
 const AdminRouteFallback = ({ title }: { title: string }) => (

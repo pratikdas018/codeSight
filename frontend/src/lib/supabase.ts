@@ -16,13 +16,17 @@ type BrowserWindowWithElectronEnv = Window & {
 };
 
 export const SUPABASE_CONFIG_ERROR =
-  "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before starting CodeSight.";
+  "Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before starting AlgoLoom.";
 
 const resolveSupabaseConfig = () => {
-  const electronEnv = (window as BrowserWindowWithElectronEnv).electronAPI?.env;
-  const url = import.meta.env.VITE_SUPABASE_URL ?? electronEnv?.supabaseUrl ?? "";
+  const electronEnv =
+    typeof window === "undefined"
+      ? undefined
+      : (window as BrowserWindowWithElectronEnv).electronAPI?.env;
+  const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+  const url = viteEnv?.VITE_SUPABASE_URL ?? electronEnv?.supabaseUrl ?? "";
   const anonKey =
-    import.meta.env.VITE_SUPABASE_ANON_KEY ?? electronEnv?.supabaseAnonKey ?? "";
+    viteEnv?.VITE_SUPABASE_ANON_KEY ?? electronEnv?.supabaseAnonKey ?? "";
 
   if (!url || !anonKey) {
     return null;
@@ -34,6 +38,10 @@ const resolveSupabaseConfig = () => {
 export const hasSupabaseConfig = resolveSupabaseConfig() !== null;
 
 const createElectronAuthStorage = () => {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
   const authStorage = (window as BrowserWindowWithElectronEnv).electronAPI
     ?.authStorage;
 

@@ -5,6 +5,7 @@
   "description": "Execution backend for CodeSight",
   "main": "dist/index.js",
   "scripts": {
+    "test": "node --import tsx --test tests/*.test.ts",
     "dev": "tsx watch src/index.ts",
     "dev:executor": "tsx watch src/executorIndex.ts",
     "build": "tsc -p tsconfig.json",

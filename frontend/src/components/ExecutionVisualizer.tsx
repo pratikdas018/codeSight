@@ -6,6 +6,7 @@ import type { HeapBlockModel, MemoryDiffState, StackFrameModel } from "../memory
 import type {
   ExecutionClassroomFrame,
   ExecutionInspectorEntry,
+  ExplanationMode,
 } from "../visualization/executionClassroom";
 import { VariableTransition } from "./VariableTransition";
 
@@ -14,6 +15,7 @@ interface ExecutionVisualizerProps {
   frame: ExecutionClassroomFrame;
   isExecuting: boolean;
   focusMode: boolean;
+  explanationMode: ExplanationMode;
   onDiagnosticSelect: (diagnostic: ExecutionDiagnostic) => void;
 }
 
@@ -57,14 +59,16 @@ const ExplanationTab = ({
   trace,
   frame,
   onDiagnosticSelect,
+  explanationMode,
 }: Pick<ExecutionVisualizerProps, "trace" | "onDiagnosticSelect"> & {
   frame: ExecutionClassroomFrame;
+  explanationMode: ExplanationMode;
 }) => (
   <div className="space-y-3">
     {/* Current executing line — hero element */}
     <div className="rounded-xl border border-[rgba(114,255,112,0.16)] bg-[rgba(10,16,10,0.96)] px-4 py-3">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.2em] text-[var(--cs-text-subtle)]">
-        Executing now
+        {explanationMode === "beginner" ? "Current step" : "Executing now"}
       </div>
       <div className="break-words font-mono text-sm leading-6 text-[var(--cs-text)]">
         {frame.lineCode || (
@@ -78,7 +82,7 @@ const ExplanationTab = ({
     {/* Explanation — the hero */}
     <div className="rounded-xl border border-[var(--cs-border)] bg-[rgba(11,14,11,0.92)] px-4 py-3">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.2em] text-[var(--cs-text-subtle)]">
-        Explanation
+        {explanationMode === "beginner" ? "Why this matters" : "Runtime explanation"}
       </div>
       <p className="text-sm leading-7 text-[var(--cs-text)]">
         {frame.explanation || (
@@ -88,6 +92,15 @@ const ExplanationTab = ({
         )}
       </p>
     </div>
+
+    {explanationMode === "developer" ? (
+      <div className="grid grid-cols-2 gap-2 rounded-xl border border-[var(--cs-border)] bg-[rgba(11,14,11,0.92)] px-4 py-3 text-xs">
+        <div><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">Function</div><div className="mt-1 font-mono text-[var(--cs-text)]">{frame.functionName || "global"}</div></div>
+        <div><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">Event</div><div className="mt-1 font-mono text-[var(--cs-text)]">{frame.eventLabel}</div></div>
+        <div><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">Trace</div><div className="mt-1 text-[var(--cs-text)]">{frame.runtime.traceQuality}</div></div>
+        <div><div className="text-[10px] uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">State changes</div><div className="mt-1 text-[var(--cs-text)]">{frame.runtime.changedVariableCount} variables · {frame.runtime.heapMutationCount} heap</div></div>
+      </div>
+    ) : null}
 
     {/* Console output — compact, secondary */}
     {frame.runtime.consolePreview.length > 0 ? (
@@ -454,6 +467,7 @@ export const ExecutionVisualizer = memo(
     frame,
     isExecuting,
     focusMode,
+    explanationMode,
     onDiagnosticSelect,
   }: ExecutionVisualizerProps) => {
     const [activeTab, setActiveTab] = useState<InsightTab>("explanation");
@@ -575,6 +589,7 @@ export const ExecutionVisualizer = memo(
                 <ExplanationTab
                   trace={trace}
                   frame={frame}
+                  explanationMode={explanationMode}
                   onDiagnosticSelect={onDiagnosticSelect}
                 />
               ) : activeTab === "variables" ? (

@@ -1,6 +1,6 @@
-# CodeSight Desktop Auto-Update Workflow
+# AlgoLoom Desktop Auto-Update Workflow
 
-CodeSight now uses `electron-updater` with the GitHub Releases provider configured for:
+AlgoLoom uses `electron-updater` with the existing `electron-updater` GitHub Releases provider configured for:
 
 - owner: `pratikdas018`
 - repo: `codeSight`
@@ -11,7 +11,7 @@ When a packaged desktop app starts, it checks GitHub Releases for a newer versio
 
 `electron-builder` generates update metadata files such as `latest.yml` for Windows, plus platform-specific metadata for macOS and Linux builds. `electron-updater` reads those metadata files from GitHub Releases and compares the installed app version to the latest published version.
 
-Once a new release is published with the installer and metadata assets attached, existing CodeSight desktop users automatically see the update notification on next startup, or when they click `Check For Updates` in Settings.
+Once a new release is published with the installer and metadata assets attached, existing desktop users continue receiving update notifications because the Electron application identifier and update repository remain unchanged.
 
 ## Release workflow
 
@@ -35,20 +35,20 @@ Create a GitHub Release for the same version tag and upload the generated assets
 
 For Windows, upload:
 
-- `CodeSight-<version>-win-x64.exe`
-- `CodeSight-<version>-win-x64.exe.blockmap`
+- `AlgoLoom-<version>-win-x64.exe`
+- `AlgoLoom-<version>-win-x64.exe.blockmap`
 - `latest.yml`
 
 For future macOS builds, also upload:
 
-- `CodeSight-<version>.dmg`
-- `CodeSight-<version>-mac.zip`
+- `AlgoLoom-<version>.dmg`
+- `AlgoLoom-<version>-mac.zip`
 - related `.blockmap` files
 - `latest-mac.yml`
 
 For future Linux AppImage builds, also upload:
 
-- `CodeSight-<version>.AppImage`
+- `AlgoLoom-<version>.AppImage`
 - related `.blockmap` files when generated
 - `latest-linux.yml`
 

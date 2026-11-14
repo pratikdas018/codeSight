@@ -1,12 +1,12 @@
-# 🚀 CodeSight
+# 🚀 AlgoLoom
 
 <div align="center">
 
 ### Visual Debugging Workspace for Learning Programming
 
-CodeSight is a modern desktop application that helps developers and students understand how code executes internally through interactive runtime visualization, memory inspection, execution tracing, and step-by-step explanations.
+AlgoLoom is an interactive programming education and developer productivity platform: understand code, visualize logic, and build better software through runtime visualization, memory inspection, execution tracing, and step-by-step explanations.
 
-Built with **Electron**, **React**, **TypeScript**, **Vite**, **Monaco Editor**, and a local execution engine, CodeSight transforms source code into an interactive learning experience.
+Built with **Electron**, **React**, **TypeScript**, **Vite**, **Monaco Editor**, and a local execution engine, AlgoLoom transforms source code into an interactive learning experience.
 
 </div>
 
@@ -132,7 +132,7 @@ Run and visualize programs locally using installed runtimes:
 
 ## Supported Local Runtimes
 
-CodeSight automatically detects installed runtimes during startup.
+AlgoLoom automatically detects installed runtimes during startup.
 
 ### Required Tools
 
@@ -353,11 +353,11 @@ Displays installed runtime information and health checks.
 
 ---
 
-## Why CodeSight?
+## Why AlgoLoom?
 
 Most IDEs show only code.
 
-CodeSight shows:
+AlgoLoom shows:
 
 ✅ How code executes
 

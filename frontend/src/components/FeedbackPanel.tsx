@@ -54,7 +54,7 @@ export const FeedbackPanel = ({
       onClose={onClose}
       icon="chat_bubble"
       title="Share Feedback"
-      description="Send us a bug report, workflow idea, or UX note. Feedback is sent to CodeSight analytics in Supabase so admins can triage it."
+      description="Send us a bug report, workflow idea, or UX note. Feedback is sent to AlgoLoom analytics in Supabase so admins can triage it."
       footer={
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--cs-border)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[var(--cs-text-muted)]">
           <span>Stored securely in Supabase for admin review.</span>
@@ -123,7 +123,7 @@ export const FeedbackPanel = ({
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              placeholder="Tell us what you were trying to do, what you expected, and what CodeSight showed instead."
+              placeholder="Tell us what you were trying to do, what you expected, and what AlgoLoom showed instead."
               className="cs-input mt-2 min-h-[12rem] resize-y"
               required
             />

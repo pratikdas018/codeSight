@@ -82,7 +82,7 @@ export const UpdateModal = ({
         ? "The update was paused before installation."
         : updateState.status === "error"
           ? updateState.errorMessage ?? updateState.message
-          : `CodeSight v${latestVersion} is available.`;
+          : `AlgoLoom v${latestVersion} is available.`;
 
   return (
     <Dialog
@@ -173,7 +173,7 @@ export const UpdateModal = ({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm leading-6 text-[var(--cs-text-muted)]">
               {updateState.status === "downloaded"
-                ? "Restart CodeSight to finish installation."
+                ? "Restart AlgoLoom to finish installation."
                 : updateState.message}
             </div>
             <div className="flex flex-wrap justify-end gap-2">

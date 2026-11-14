@@ -1,8 +1,8 @@
-# CodeSight security and resilience
+# AlgoLoom security and resilience
 
 ## Scope and architecture
 
-CodeSight has a Vite/React renderer, an Electron main process with a narrow preload bridge, an Express API, a local execution queue, optional remote executor deployment, and Supabase-backed application data. The browser API is deployed separately from the Vercel frontend; the desktop app starts the backend on loopback and uses the same renderer through IPC.
+AlgoLoom has a Vite/React renderer, an Electron main process with a narrow preload bridge, an Express API, a local execution queue, optional remote executor deployment, and Supabase-backed application data. The browser API is deployed separately from the Vercel frontend; the desktop app starts the backend on loopback and uses the same renderer through IPC.
 
 ## Protections implemented
 

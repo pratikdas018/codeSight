@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { BRAND } from "./brand";
 
 const PRODUCTION_SITE_URL = "https://getcodesight.vercel.app";
-const DEFAULT_TITLE = "CodeSight — Visual Code Debugger & Execution Visualizer";
+const DEFAULT_TITLE = `${BRAND.name} — Interactive Code Learning Platform`;
 const DEFAULT_DESCRIPTION =
-  "Understand how code executes with CodeSight: visualize execution step by step, inspect variables, and explore stack and heap memory.";
+  `${BRAND.tagline} Learn programming, visualize execution step by step, and inspect variables, stack, and heap memory.`;
 const GOOGLE_SITE_VERIFICATION = "o_AbIaACjH--EyMxEREqo1zk4zEGUt82Ade_879VUIs";
 
 const normalizeSiteUrl = (value: string | undefined) => {
@@ -23,13 +24,13 @@ const pages = {
     robots: "index,follow,max-image-preview:large",
   },
   private: {
-    title: "CodeSight Workspace — Visual Debugger",
-    description: "Authenticated CodeSight workspace for stepping through code and inspecting runtime state.",
+    title: `${BRAND.name} Workspace — Visual Code Debugger`,
+    description: `Authenticated ${BRAND.name} workspace for stepping through code and inspecting runtime state.`,
     robots: "noindex,nofollow,noarchive",
   },
   admin: {
-    title: "CodeSight Admin",
-    description: "Private CodeSight administration workspace.",
+    title: `${BRAND.name} Admin`,
+    description: `Private ${BRAND.name} administration workspace.`,
     robots: "noindex,nofollow,noarchive",
   },
 } as const;
@@ -60,18 +61,18 @@ const structuredData = () => ({
     {
       "@type": "WebSite",
       "@id": `${siteUrl}/#website`,
-      name: "CodeSight",
+      name: BRAND.name,
       url: `${siteUrl}/`,
     },
     {
       "@type": "SoftwareApplication",
       "@id": `${siteUrl}/#software`,
-      name: "CodeSight",
-      description: DEFAULT_DESCRIPTION,
+      name: BRAND.name,
+      description: `${BRAND.positioning}. ${BRAND.tagline}`,
       applicationCategory: "DeveloperApplication",
       operatingSystem: "Windows, macOS, Linux",
       url: `${siteUrl}/`,
-      downloadUrl: "https://github.com/pratikdas018/codeSight/releases/download/v.1.0.5/CodeSight-1.0.5-win-x64.exe",
+      downloadUrl: "https://github.com/pratikdas018/codeSight/releases/latest",
       softwareVersion: "1.0.6",
     },
   ],
@@ -83,18 +84,30 @@ export const Seo = () => {
   useEffect(() => {
     const isAdmin = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
     const isAuthConfirm = window.location.pathname === "/auth/confirm";
-    const page = isAdmin ? pages.admin : isAuthConfirm ? pages.private : pages.public;
-    const canonicalPath = isAdmin || isAuthConfirm ? "/" : "/";
+    const isPublicLearn = location.pathname === "/learn";
+    const isPlatform = [
+      "/home",
+      "/playground",
+      "/algorithms",
+      "/data-structures",
+      "/compiler",
+      "/sql-lab",
+      "/learn",
+      "/tools",
+      "/resources",
+    ].includes(location.pathname);
+    const page = isAdmin ? pages.admin : isAuthConfirm || (isPlatform && !isPublicLearn) ? pages.private : pages.public;
+    const canonicalPath = isAdmin || isAuthConfirm || (isPlatform && !isPublicLearn) ? "/" : isPublicLearn ? "/learn" : "/";
     const canonical = `${siteUrl}${canonicalPath}`;
 
     document.documentElement.lang = "en";
     document.title = page.title;
     setMeta('meta[name="description"]', "name", page.description);
     setMeta('meta[name="robots"]', "name", page.robots);
-    setMeta('meta[name="application-name"]', "name", "CodeSight");
-    setMeta('meta[name="theme-color"]', "name", "#050505");
+    setMeta('meta[name="application-name"]', "name", BRAND.name);
+    setMeta('meta[name="theme-color"]', "name", BRAND.colors.background);
     setMeta('meta[property="og:type"]', "property", "website");
-    setMeta('meta[property="og:site_name"]', "property", "CodeSight");
+    setMeta('meta[property="og:site_name"]', "property", BRAND.name);
     setMeta('meta[property="og:title"]', "property", page.title);
     setMeta('meta[property="og:description"]', "property", page.description);
     setMeta('meta[property="og:url"]', "property", canonical);
@@ -117,7 +130,7 @@ export const Seo = () => {
       jsonLd.dataset.codesightSchema = "true";
       document.head.appendChild(jsonLd);
     }
-    jsonLd.textContent = isAdmin || isAuthConfirm ? "" : JSON.stringify(structuredData());
+    jsonLd.textContent = isAdmin || isAuthConfirm || (isPlatform && !isPublicLearn) ? "" : JSON.stringify(structuredData());
   }, [location.pathname]);
 
   return null;

@@ -122,7 +122,7 @@ app.use(executionRoutes);
 
 app.use(
   (
-    error: Error,
+    error: Error & { status?: number; type?: string; statusCode?: number },
     _request: express.Request,
     response: express.Response,
     next: express.NextFunction,
@@ -137,10 +137,24 @@ app.use(
       return;
     }
 
-    response.status(500).json({
-      message: env.isProduction
-        ? "Internal server error."
-        : error.message,
+    const statusCode =
+      error.type === "entity.too.large" || error.statusCode === 413
+        ? 413
+        : error instanceof SyntaxError
+          ? 400
+          : error.status && error.status >= 400 && error.status < 500
+            ? error.status
+            : 500;
+
+    response.status(statusCode).json({
+      message:
+        statusCode === 413
+          ? "Request body is too large."
+          : statusCode === 400
+            ? "Request body must be valid JSON."
+            : env.isProduction
+              ? "Internal server error."
+              : error.message,
     });
   },
 );
