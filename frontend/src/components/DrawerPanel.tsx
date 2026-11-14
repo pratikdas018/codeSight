@@ -79,7 +79,7 @@ export const DrawerPanel = ({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
-                    CodeSight workspace
+                    AlgoLoom workspace
                   </div>
                   <h2 className="mt-2 text-xl font-semibold text-[var(--cs-text)]">
                     {title}

@@ -392,7 +392,7 @@ const buildDesktopEnvironment = () => {
 };
 
 const normalizeWindowTitle = (fileName?: string | null) =>
-  fileName ? `${fileName} - CodeSight` : "CodeSight";
+  fileName ? `${fileName} - AlgoLoom` : "AlgoLoom";
 
 const sendMenuAction = (action: MenuActionEvent) => {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -592,7 +592,7 @@ const loadFileFromPath = async (filePath: string) => {
     throw new Error("The selected path is not a file.");
   }
   if (fileInfo.size > maxLocalFileBytes) {
-    throw new Error("Files larger than 5 MB cannot be opened in CodeSight.");
+    throw new Error("Files larger than 5 MB cannot be opened in AlgoLoom.");
   }
 
   const content = await fs.readFile(filePath, "utf8");
@@ -645,10 +645,10 @@ const invokeBackend = async <T>(pathname: string, payload?: unknown) => {
 const showAboutDialog = async () => {
   const options: MessageBoxOptions = {
     type: "info",
-    title: "About CodeSight",
-    message: `CodeSight ${app.getVersion()}`,
+    title: "About AlgoLoom",
+    message: `AlgoLoom ${app.getVersion()}`,
     detail:
-      "Desktop code tracing workspace built with Electron, React, Monaco, and a local execution backend.",
+      "Interactive programming education workspace built with Electron, React, Monaco, and a local execution backend.",
     buttons: ["OK"],
   };
 
@@ -799,7 +799,7 @@ const createMainWindow = async () => {
     minHeight: 760,
     show: false,
     backgroundColor: "#0b0e14",
-    title: "CodeSight",
+    title: "AlgoLoom",
     icon: getIconPath(),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     webPreferences: {
@@ -1127,7 +1127,7 @@ handleIpc(
         (entry) => path.resolve(entry.filePath) === requestedPath,
       );
       if (!isKnownFile) {
-        throw new Error("This file must be selected through CodeSight before it can be opened.");
+        throw new Error("This file must be selected through AlgoLoom before it can be opened.");
       }
       return loadFileFromPath(request.filePath);
     }
@@ -1152,7 +1152,7 @@ handleIpc(
 handleIpc("desktop:save-file", async (_event, rawPayload) => {
   const payload = rawPayload as DesktopFilePayload;
   if (Buffer.byteLength(payload.content ?? "", "utf8") > maxLocalFileBytes) {
-    throw new Error("Files larger than 5 MB cannot be saved from CodeSight.");
+    throw new Error("Files larger than 5 MB cannot be saved from AlgoLoom.");
   }
   let targetPath = payload.filePath ?? null;
 
@@ -1175,7 +1175,7 @@ handleIpc("desktop:save-file", async (_event, rawPayload) => {
     const recentFiles = await readRecentFiles();
     const requestedPath = path.resolve(targetPath);
     if (!recentFiles.some((entry) => path.resolve(entry.filePath) === requestedPath)) {
-      throw new Error("This file must be opened through CodeSight before it can be overwritten.");
+    throw new Error("This file must be opened through AlgoLoom before it can be overwritten.");
     }
   }
 
@@ -1259,10 +1259,10 @@ handleIpc(
 
 handleIpc("desktop:open-local-snippet", async () => {
   const options: OpenDialogOptions = {
-    title: "Open Local CodeSight Snippet",
+    title: "Open Local AlgoLoom Snippet",
     properties: ["openFile"],
     filters: [
-      { name: "CodeSight Snippets", extensions: ["json"] },
+      { name: "AlgoLoom Snippets", extensions: ["json"] },
       { name: "All Files", extensions: ["*"] },
     ],
   };
@@ -1398,7 +1398,7 @@ app.on("second-instance", () => {
 
 app.whenReady().then(async () => {
   try {
-    logDesktopMessage("CodeSight desktop startup initiated.");
+    logDesktopMessage("AlgoLoom desktop startup initiated.");
     app.setAppUserModelId("com.pratik.codesight");
     validateDesktopBundle();
     updateService = new UpdateService({

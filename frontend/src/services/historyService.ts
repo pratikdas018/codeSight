@@ -70,7 +70,7 @@ export const createExecutionHistory = async (payload: {
   const sessionUserId = await requireSessionUserId(payload.userId);
   const { data: snippet, error: snippetError } = await requireSupabase()
     .from("snippets")
-    .select("id, user_id")
+    .select("id, user_id, workspace_id, title, language, code")
     .eq("id", payload.snippetId)
     .eq("user_id", sessionUserId)
     .single();
@@ -84,6 +84,10 @@ export const createExecutionHistory = async (payload: {
     .insert({
       user_id: sessionUserId,
       snippet_id: payload.snippetId,
+      workspace_id: snippet.workspace_id,
+      snippet_title: snippet.title,
+      snippet_language: snippet.language,
+      snippet_code: snippet.code,
       output: payload.output ?? null,
       execution_time: payload.executionTime,
     })

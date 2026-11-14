@@ -2,7 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { requireSupabase } from "../lib/supabase";
 
 const SESSION_EXPIRED_MESSAGE =
-  "Your CodeSight session expired. Log in again to continue.";
+  "Your AlgoLoom session expired. Log in again to continue.";
 
 export const requireSessionUserId = async (expectedUserId?: string) => {
   const {
@@ -16,7 +16,7 @@ export const requireSessionUserId = async (expectedUserId?: string) => {
   }
 
   if (expectedUserId && expectedUserId !== sessionUserId) {
-    throw new Error("The active CodeSight session does not match this account.");
+    throw new Error("The active AlgoLoom session does not match this account.");
   }
 
   return sessionUserId;

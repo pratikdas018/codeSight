@@ -1,4 +1,4 @@
-# Security operations guide
+# AlgoLoom Security Operations Guide
 
 The canonical security assessment and deployment checklist is in the repository root [SECURITY.md](../SECURITY.md). This file is kept under `docs/` for deployment documentation navigation.
 

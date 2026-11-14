@@ -20,7 +20,8 @@ export type AnalyticsAction =
   | "export_usage"
   | "save_file"
   | "open_file"
-  | "language_switch";
+  | "language_switch"
+  | "learning_quiz";
 
 export const trackUserActivity = async (payload: {
   action: AnalyticsAction;

@@ -98,7 +98,7 @@ export const AuthConfirmScreen = () => {
             status: "success",
             title: "Email verified successfully.",
             description:
-              "Your CodeSight account is confirmed. Redirecting you back to CodeSight now.",
+              "Your AlgoLoom account is confirmed. Redirecting you back to AlgoLoom now.",
           });
         }
 
@@ -141,7 +141,7 @@ export const AuthConfirmScreen = () => {
           error = result.error;
         } else {
           throw new Error(
-            "Open the full confirmation link again, or request a fresh confirmation email from CodeSight.",
+              "Open the full confirmation link again, or request a fresh confirmation email from AlgoLoom.",
           );
         }
 
@@ -156,7 +156,7 @@ export const AuthConfirmScreen = () => {
             status: "success",
             title: "Email verified successfully.",
             description:
-              "Your CodeSight account is confirmed. Redirecting you back to CodeSight now.",
+              "Your AlgoLoom account is confirmed. Redirecting you back to AlgoLoom now.",
           });
         }
 
@@ -190,7 +190,7 @@ export const AuthConfirmScreen = () => {
     return (
       <AppStatusScreen
         eyebrow="Authentication"
-        title="Verifying your CodeSight email."
+        title="Verifying your AlgoLoom email."
         description="This confirmation link is being checked with Supabase."
         showSpinner
       />
@@ -217,7 +217,7 @@ export const AuthConfirmScreen = () => {
             href={getRedirectHomeUrl()}
             className="inline-flex items-center rounded-full border border-[#1f1f1f] bg-[#00ff41] px-4 py-2.5 text-sm font-medium text-[#041005] transition hover:brightness-105"
           >
-            Return to CodeSight
+          Return to AlgoLoom
           </a>
           <a
             href={getLoginUrl()}

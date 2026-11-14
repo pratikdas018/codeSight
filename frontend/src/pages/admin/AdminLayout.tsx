@@ -67,7 +67,7 @@ export const AdminLayout = () => {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
-                CodeSight Admin
+                AlgoLoom Admin
               </div>
               <div className="truncate text-lg font-semibold tracking-[-0.04em] text-[var(--cs-text)]">
                 Operations dashboard
@@ -121,7 +121,7 @@ export const AdminLayout = () => {
           <Card className="sticky top-4 flex h-[calc(100vh-2rem)] flex-col p-4">
             <div className="px-2 pt-2">
               <div className="text-xs uppercase tracking-[0.22em] text-[var(--cs-text-subtle)]">
-                CodeSight Admin
+              AlgoLoom Admin
               </div>
               <h1 className="mt-3 text-2xl font-semibold tracking-[-0.05em]">Signal center</h1>
               <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">

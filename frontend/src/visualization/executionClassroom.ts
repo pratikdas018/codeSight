@@ -67,6 +67,8 @@ export interface ExecutionClassroomFrame {
   };
 }
 
+export type ExplanationMode = "beginner" | "developer";
+
 interface CreateExecutionClassroomFrameOptions {
   trace: ExecutionTrace;
   step: ExecutionStep | null;
@@ -314,7 +316,7 @@ const buildConditionExplanation = (
     step?.eventType === "CONDITION_TRUE"
       ? "It evaluates to true, so execution continues down this branch."
       : step?.eventType === "CONDITION_FALSE"
-        ? "It evaluates to false, so CodeSight follows the alternate path."
+        ? "It evaluates to false, so AlgoLoom follows the alternate path."
         : "This check decides which path the program takes next.";
 
   return `Checks ${condition || "the current condition"} inside ${functionName}. ${outcome}`;
@@ -440,7 +442,7 @@ const buildGeneratedExplanation = (
   const trimmed = lineCode.trim();
 
   if (!trimmed) {
-    return "Press Run and CodeSight will explain each frame with synchronized runtime state.";
+    return "Press Run and AlgoLoom will explain each frame with synchronized runtime state.";
   }
 
   if (

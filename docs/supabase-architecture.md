@@ -1,6 +1,6 @@
-# CodeSight Supabase Architecture
+# AlgoLoom Supabase Architecture
 
-CodeSight now expects the Supabase backend defined by these migrations:
+AlgoLoom uses the existing Supabase backend defined by these migrations:
 
 - `supabase/migrations/20260509_initial_schema.sql`
 - `supabase/migrations/20260514_production_architecture.sql`

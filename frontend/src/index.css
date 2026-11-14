@@ -5,51 +5,75 @@
 @tailwind utilities;
 
 :root {
-  color: #e6ffe8;
+  color: #f3f6fa;
   color-scheme: dark;
   font-family: "Geist", "Segoe UI", sans-serif;
-  background-color: #050505;
-  --cs-bg: #050505;
-  --cs-bg-elevated: rgba(9, 11, 9, 0.94);
-  --cs-bg-panel: rgba(16, 18, 16, 0.86);
-  --cs-bg-card: rgba(22, 24, 22, 0.94);
-  --cs-surface-soft: rgba(12, 16, 12, 0.88);
-  --cs-border: rgba(31, 31, 31, 1);
-  --cs-border-strong: rgba(0, 255, 65, 0.18);
-  --cs-text: #e5e2e1;
-  --cs-text-muted: #b9ccb2;
-  --cs-text-subtle: #84967e;
-  --cs-primary: #00ff41;
-  --cs-primary-soft: rgba(0, 255, 65, 0.12);
-  --cs-primary-bright: #72ff70;
-  --cs-secondary: #10b981;
-  --cs-shadow: 0 20px 45px rgba(0, 0, 0, 0.42);
-  --cs-body-start: #050505;
-  --cs-body-mid: #090b09;
-  --cs-body-end: #050505;
-  --cs-body-spot: rgba(0, 255, 65, 0.11);
-  --cs-body-glow: rgba(0, 255, 65, 0.06);
+  background-color: #0b0f14;
+  --cs-bg: #0b0f14;
+  --cs-bg-elevated: rgba(20, 26, 34, 0.96);
+  --cs-bg-panel: rgba(20, 26, 34, 0.92);
+  --cs-bg-card: rgba(27, 36, 48, 0.96);
+  --cs-surface-soft: rgba(20, 26, 34, 0.88);
+  --cs-border: rgba(74, 91, 111, 0.42);
+  --cs-border-strong: rgba(39, 211, 194, 0.3);
+  --cs-text: #f3f6fa;
+  --cs-text-muted: #a2adbc;
+  --cs-text-subtle: #8492a4;
+  --cs-primary: #27d3c2;
+  --cs-primary-soft: rgba(39, 211, 194, 0.14);
+  --cs-primary-bright: #71e6d9;
+  --cs-secondary: #42b8e8;
+  --cs-shadow: 0 20px 45px rgba(0, 0, 0, 0.34);
+  --cs-body-start: #0b0f14;
+  --cs-body-mid: #101722;
+  --cs-body-end: #0b0f14;
+  --cs-body-spot: rgba(39, 211, 194, 0.1);
+  --cs-body-glow: rgba(66, 184, 232, 0.06);
 }
 
 :root[data-codesight-theme="graphite"] {
-  --cs-bg: #060906;
-  --cs-bg-elevated: rgba(12, 15, 12, 0.94);
-  --cs-bg-panel: rgba(19, 22, 19, 0.86);
-  --cs-bg-card: rgba(25, 29, 25, 0.94);
-  --cs-surface-soft: rgba(13, 16, 13, 0.88);
-  --cs-border: rgba(42, 46, 42, 1);
-  --cs-border-strong: rgba(114, 255, 112, 0.16);
-  --cs-text-muted: #a7b7a1;
-  --cs-text-subtle: #7c8c77;
-  --cs-primary: #72ff70;
-  --cs-primary-soft: rgba(114, 255, 112, 0.12);
-  --cs-primary-bright: #dfffe5;
-  --cs-shadow: 0 20px 45px rgba(0, 0, 0, 0.48);
-  --cs-body-start: #070907;
-  --cs-body-mid: #0b0d0b;
-  --cs-body-end: #070907;
-  --cs-body-spot: rgba(114, 255, 112, 0.09);
-  --cs-body-glow: rgba(114, 255, 112, 0.05);
+  --cs-bg: #0d141d;
+  --cs-bg-elevated: rgba(21, 31, 43, 0.96);
+  --cs-bg-panel: rgba(24, 35, 48, 0.92);
+  --cs-bg-card: rgba(30, 43, 58, 0.96);
+  --cs-surface-soft: rgba(18, 28, 40, 0.9);
+  --cs-border: rgba(91, 112, 137, 0.44);
+  --cs-border-strong: rgba(66, 184, 232, 0.28);
+  --cs-text-muted: #b4c0cf;
+  --cs-text-subtle: #8998ab;
+  --cs-primary: #42b8e8;
+  --cs-primary-soft: rgba(66, 184, 232, 0.14);
+  --cs-primary-bright: #9ae1f7;
+  --cs-shadow: 0 20px 45px rgba(0, 0, 0, 0.46);
+  --cs-body-start: #0d141d;
+  --cs-body-mid: #111d2b;
+  --cs-body-end: #0d141d;
+  --cs-body-spot: rgba(66, 184, 232, 0.09);
+  --cs-body-glow: rgba(146, 120, 245, 0.07);
+}
+
+:root[data-algoloom-theme="light"] {
+  color-scheme: light;
+  --cs-bg: #f3f6fa;
+  --cs-bg-elevated: rgba(255, 255, 255, 0.98);
+  --cs-bg-panel: rgba(255, 255, 255, 0.94);
+  --cs-bg-card: #ffffff;
+  --cs-surface-soft: #e8eef5;
+  --cs-border: rgba(92, 111, 132, 0.24);
+  --cs-border-strong: rgba(17, 143, 135, 0.34);
+  --cs-text: #182331;
+  --cs-text-muted: #526174;
+  --cs-text-subtle: #718096;
+  --cs-primary: #118f87;
+  --cs-primary-soft: rgba(39, 211, 194, 0.14);
+  --cs-primary-bright: #08746f;
+  --cs-secondary: #167da7;
+  --cs-shadow: 0 18px 42px rgba(22, 38, 56, 0.12);
+  --cs-body-start: #f3f6fa;
+  --cs-body-mid: #e9eff6;
+  --cs-body-end: #f7f9fc;
+  --cs-body-spot: rgba(39, 211, 194, 0.12);
+  --cs-body-glow: rgba(146, 120, 245, 0.08);
 }
 
 * {

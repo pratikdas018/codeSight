@@ -40,7 +40,7 @@ export const HelpPanel = ({ onClose, open }: HelpPanelProps) => (
     onClose={onClose}
     icon="help"
     title="Help & Quick Start"
-    description="A beginner-friendly guide to tracing code, stepping through frames, and understanding what CodeSight is showing you."
+    description="A beginner-friendly guide to tracing code, stepping through frames, and understanding what AlgoLoom is showing you."
     footer={
       <div className="rounded-2xl border border-[rgba(114,255,112,0.14)] bg-[rgba(114,255,112,0.07)] px-4 py-3 text-sm leading-6 text-[var(--cs-text-muted)]">
         Keep the editor, variables, and timeline visible together when learning a new concept. The explanation panel tells you what changed before you have to parse every symbol yourself.

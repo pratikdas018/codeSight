@@ -4,6 +4,7 @@
   "private": true,
   "description": "React frontend for CodeSight",
   "scripts": {
+    "test": "node --import tsx --test tests/*.test.ts",
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview"

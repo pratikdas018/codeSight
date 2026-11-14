@@ -1,0 +1,45 @@
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Bookmark, CheckCircle2, LockKeyhole, RotateCcw } from "lucide-react";
+import { lessons, lessonById, type Lesson } from "../../learning/lessons";
+import { useAuth } from "../../hooks/useAuth";
+import { trackUserActivitySafe } from "../../services/analyticsService";
+
+type Progress = Record<string, { completed: boolean; score?: number; updatedAt: string }>;
+const STORAGE_KEY = "algoloom.learning.progress.v1";
+const BOOKMARKS_KEY = "algoloom.learning.bookmarks.v1";
+
+const readJson = <T,>(key: string, fallback: T): T => {
+  try { return JSON.parse(window.localStorage.getItem(key) ?? "") as T; } catch { return fallback; }
+};
+
+export const LearnPage = () => {
+  const { user } = useAuth();
+  const [selectedId, setSelectedId] = useState(lessons[0].id);
+  const [progress, setProgress] = useState<Progress>(() => readJson(STORAGE_KEY, {}));
+  const [bookmarks, setBookmarks] = useState<string[]>(() => readJson(BOOKMARKS_KEY, []));
+  const [mode, setMode] = useState<"beginner" | "developer">("beginner");
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const lesson = lessonById[selectedId] ?? lessons[0];
+
+  useEffect(() => { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); }, [progress]);
+  useEffect(() => { window.localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks)); }, [bookmarks]);
+  useEffect(() => { setSelectedAnswer(null); setQuizSubmitted(false); }, [selectedId]);
+
+  const completedCount = useMemo(() => Object.values(progress).filter((item) => item.completed).length, [progress]);
+  const isBookmarked = bookmarks.includes(lesson.id);
+  const selectLesson = (next: Lesson) => setSelectedId(next.id);
+  const submitQuiz = () => {
+    if (selectedAnswer === null) return;
+    setQuizSubmitted(true);
+    const completed = selectedAnswer === lesson.quiz.answer;
+    setProgress((current) => ({ ...current, [lesson.id]: { completed, score: completed ? 1 : 0, updatedAt: new Date().toISOString() } }));
+    if (user?.id) void trackUserActivitySafe({ userId: user.id, action: "learning_quiz", metadata: { lessonId: lesson.id, correct: completed } });
+  };
+  const toggleBookmark = () => setBookmarks((current) => current.includes(lesson.id) ? current.filter((id) => id !== lesson.id) : [...current, lesson.id]);
+
+  return <div className="space-y-7"><section className="max-w-3xl"><div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cs-primary-bright)]">Learning path · {completedCount}/{lessons.length} complete</div><h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">Build understanding one concept at a time.</h1><p className="mt-4 text-base leading-7 text-[var(--cs-text-muted)]">Short, complete lessons for programming fundamentals. Reading is public; progress and bookmarks are saved in this browser, with quiz activity optionally recorded for signed-in accounts.</p></section><div className="grid gap-5 lg:grid-cols-[18rem,1fr]"><aside className="space-y-2 rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4"><div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">Fundamentals</div>{lessons.map((item) => <button key={item.id} type="button" onClick={() => selectLesson(item)} className={`w-full rounded-xl border px-3 py-3 text-left ${selectedId === item.id ? "border-[rgba(39,211,194,0.3)] bg-[rgba(39,211,194,0.1)]" : "border-[var(--cs-border)] hover:bg-[var(--cs-elevated)]"}`}><div className="flex items-center gap-2 text-sm font-medium text-[var(--cs-text)]">{progress[item.id]?.completed ? <CheckCircle2 className="h-4 w-4 text-[var(--cs-primary)]" /> : null}{item.title}</div><div className="mt-1 text-xs text-[var(--cs-text-subtle)]">{item.level}</div></button>)}</aside><article className="space-y-5"><header className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="text-xs uppercase tracking-[0.16em] text-[var(--cs-text-subtle)]">{lesson.category} · {lesson.level}</div><h2 className="mt-2 text-2xl font-semibold text-[var(--cs-text)]">{lesson.title}</h2><p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">{lesson.summary}</p></div><div className="flex items-center gap-2"><button type="button" onClick={toggleBookmark} aria-pressed={isBookmarked} className={`rounded-lg border p-2 ${isBookmarked ? "border-[var(--cs-primary)] text-[var(--cs-primary)]" : "border-[var(--cs-border)] text-[var(--cs-text-muted)]"}`} aria-label={isBookmarked ? "Remove bookmark" : "Bookmark lesson"}><Bookmark className="h-4 w-4" /></button><button type="button" onClick={() => setMode((current) => current === "beginner" ? "developer" : "beginner")} className="rounded-lg border border-[var(--cs-border)] px-3 py-2 text-xs text-[var(--cs-text)]">{mode === "beginner" ? "Developer mode" : "Beginner mode"}</button></div></div></header><LessonSection title="Learning objectives"><ul className="grid gap-2 sm:grid-cols-3">{lesson.objectives.map((item) => <li key={item} className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-3 text-sm text-[var(--cs-text-muted)]">{item}</li>)}</ul></LessonSection><LessonSection title="Introduction"><p>{lesson.introduction}</p></LessonSection><LessonSection title={mode === "beginner" ? "Simple explanation" : "Technical explanation"}><p>{mode === "beginner" ? lesson.simpleExplanation : lesson.technicalExplanation}</p></LessonSection><LessonSection title="Practical example"><pre className="overflow-x-auto rounded-xl bg-[#080c10] p-4 font-mono text-sm leading-6 text-[#d6e5ef]"><code>{lesson.exampleCode}</code></pre><p className="mt-3 text-sm text-[var(--cs-text-muted)]">{lesson.exampleNotes}</p></LessonSection><div className="grid gap-5 md:grid-cols-2"><LessonSection title="Common mistakes"><ul className="space-y-2">{lesson.commonMistakes.map((item) => <li key={item} className="flex gap-2"><span className="text-amber-300">•</span>{item}</li>)}</ul></LessonSection><LessonSection title="Real-world applications"><ul className="space-y-2">{lesson.applications.map((item) => <li key={item} className="flex gap-2"><span className="text-[var(--cs-primary)]">•</span>{item}</li>)}</ul></LessonSection></div>{lesson.complexity ? <LessonSection title="Complexity note"><p>{lesson.complexity}</p></LessonSection> : null}<section className="rounded-2xl border border-[rgba(39,211,194,0.25)] bg-[rgba(39,211,194,0.06)] p-5"><div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--cs-primary-bright)]">Knowledge check</div><h3 className="mt-2 font-medium text-[var(--cs-text)]">{lesson.quiz.question}</h3><div className="mt-4 grid gap-2 sm:grid-cols-2">{lesson.quiz.options.map((option, optionIndex) => <button key={option} type="button" onClick={() => { setSelectedAnswer(optionIndex); setQuizSubmitted(false); }} className={`rounded-xl border px-3 py-3 text-left text-sm ${selectedAnswer === optionIndex ? "border-[var(--cs-primary)] bg-[rgba(39,211,194,0.12)]" : "border-[var(--cs-border)]"}`}>{option}</button>)}</div><button type="button" onClick={submitQuiz} disabled={selectedAnswer === null} className="mt-4 rounded-lg bg-[var(--cs-primary)] px-4 py-2.5 text-sm font-semibold text-[#061114] disabled:opacity-40">Check answer</button>{quizSubmitted ? <div className={`mt-4 rounded-xl border p-3 text-sm ${selectedAnswer === lesson.quiz.answer ? "border-emerald-300/30 text-emerald-100" : "border-amber-300/30 text-amber-100"}`}>{selectedAnswer === lesson.quiz.answer ? "Correct — lesson marked complete." : "Not quite. Try again, then check your answer."} <span className="block mt-1 text-xs opacity-80">{lesson.quiz.explanation}</span></div> : null}</section><div className="flex items-center justify-between border-t border-[var(--cs-border)] pt-5"><span className="text-sm text-[var(--cs-text-muted)]">{progress[lesson.id]?.completed ? "Completed" : "Complete the knowledge check to mark this lesson complete."}</span><button type="button" onClick={() => { setSelectedAnswer(null); setQuizSubmitted(false); }} className="inline-flex items-center gap-2 text-sm text-[var(--cs-text-muted)]"><RotateCcw className="h-4 w-4" /> Reset quiz</button></div>{!user ? <div className="flex items-center gap-2 text-xs text-[var(--cs-text-subtle)]"><LockKeyhole className="h-3.5 w-3.5" /> Sign in is optional for lessons; signed-in quiz activity can be included in your learning history.</div> : null}</article></div></div>;
+};
+
+const LessonSection = ({ title, children }: { title: string; children: ReactNode }) => <section className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5"><h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--cs-text-subtle)]">{title}</h3><div className="mt-3 text-sm leading-7 text-[var(--cs-text-muted)]">{children}</div></section>;
+

@@ -70,6 +70,9 @@ export const createSnippet = async (payload: {
   description?: string;
 }) => {
   const sessionUserId = await requireSessionUserId(payload.userId);
+  if (!payload.workspaceId) {
+    throw new Error("A workspace is required to save a snippet.");
+  }
   const { data, error } = await requireSupabase()
     .from("snippets")
     .insert({

@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CodeSight icon">
-  <rect width="64" height="64" rx="16" fill="#050505"/>
-  <path d="m25 20-13 12 13 12M39 20l13 12-13 12M35 14 29 50" fill="none" stroke="#00ff41" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AlgoLoom icon">
+  <rect width="64" height="64" rx="16" fill="#0B0F14"/>
+  <path d="M18 18h20c7 0 11 4 11 9 0 4-2 7-5 8 4 2 6 5 6 10 0 7-5 11-13 11H18V18Zm7 7v25h11c4 0 7-2 7-6s-3-6-7-6H25m0 0h10c3 0 5-2 5-5s-2-5-6-5H25Z" fill="none" stroke="#27D3C2" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="m43 12 7-5" fill="none" stroke="#9278F5" stroke-linecap="round" stroke-width="3"/>
 </svg>

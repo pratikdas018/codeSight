@@ -53,7 +53,7 @@ export const RuntimeManagerPanel = ({
               : `${installedCount}/${totalCount} runtime groups ready`}
           </div>
           <p className="mt-2 text-sm leading-6 text-[var(--cs-text-muted)]">
-            CodeSight uses local installed tools for JavaScript, Python, Java, C, and C++ execution.
+            AlgoLoom uses local installed tools for JavaScript, Python, Java, C, and C++ execution.
           </p>
           {runtimeManager ? (
             <p className="mt-1 text-xs text-[var(--cs-text-subtle)]">

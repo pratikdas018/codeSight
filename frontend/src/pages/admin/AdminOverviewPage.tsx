@@ -101,7 +101,7 @@ export const AdminOverviewPage = () => {
                 <Badge variant="info">{metrics.activeUsersOnline} online now</Badge>
               </div>
               <h3 className="mt-4 text-[clamp(1.7rem,5vw,3rem)] font-semibold tracking-[-0.07em] text-[var(--cs-text)]">
-                CodeSight is active, stable, and generating learning telemetry.
+                AlgoLoom is active, stable, and generating learning telemetry.
               </h3>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--cs-text-muted)] sm:text-base">
                 Use this command surface to watch adoption, execution quality, playback engagement,

@@ -1,8 +1,8 @@
-# CodeSight technical SEO
+# AlgoLoom technical SEO
 
 ## Architecture
 
-CodeSight is a React 19/Vite SPA in `frontend/`, using `HashRouter`. The desktop build and browser deployment share the renderer, but the Electron application is not an SEO surface. The browser deployment is configured as a Vercel Vite site.
+AlgoLoom is a React 19/Vite SPA in `frontend/`, using `HashRouter`. The desktop build and browser deployment share the renderer, but the Electron application is not an SEO surface. The browser deployment is configured as a Vercel Vite site.
 
 The only intentionally indexable URL is the public root entry point. The authenticated workspace, email-confirmation route, admin dashboard, and user-specific execution data are not public content and are excluded from crawling/indexing.
 
@@ -20,7 +20,7 @@ Set `VITE_SITE_URL` in the Vercel project if a custom domain becomes the preferr
 - `frontend/public/robots.txt`: public crawl access, private-route exclusions, and sitemap reference.
 - `frontend/public/icon.svg` and `frontend/public/og-image.svg`: first-party favicon and social preview assets.
 
-The structured data uses verified product facts from the repository: CodeSight, its developer-tool category, the configured desktop platforms, the GitHub release download URL, and the package version. It intentionally does not include ratings, reviews, prices, or invented organization claims.
+The structured data uses verified product facts from the repository: AlgoLoom, its developer-tool category, the configured desktop platforms, the existing GitHub release download URL, and the package version. It intentionally does not include ratings, reviews, prices, or invented organization claims.
 
 ## Search Console
 

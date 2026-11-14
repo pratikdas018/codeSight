@@ -1,8 +1,8 @@
-# CodeSight Deployment Guide
+# AlgoLoom Deployment Guide
 
 ## Desktop Runtime Model
 
-CodeSight desktop releases now execute code with local machine tools instead of Docker containers.
+AlgoLoom desktop releases now execute code with local machine tools instead of Docker containers.
 
 Required tools:
 
@@ -44,4 +44,4 @@ npm run electron:dev
 
 ## Render / Hosted API
 
-If you still deploy the standalone backend, the host machine must have the same local runtimes installed and available on `PATH` because CodeSight no longer depends on Docker runner images.
+If you still deploy the standalone backend, the host machine must have the same local runtimes installed and available on `PATH` because AlgoLoom no longer depends on Docker runner images.
