@@ -11,7 +11,7 @@ export const PlatformShell = () => {
   return (
     <div className="min-h-screen bg-[var(--cs-background)] text-[var(--cs-text)] lg:flex">
       <PlatformSidebar />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 lg:ml-16">
         <header className="border-b border-[var(--cs-border)] bg-[var(--cs-background)]/80 px-5 pb-5 pt-20 backdrop-blur-xl sm:px-8 lg:px-10 lg:pt-7">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
             <div className="lg:hidden"><CodeSightLogo compact iconOnly /></div>
@@ -29,5 +29,5 @@ export const PlatformShell = () => {
   );
 };
 
-export const platformModuleIds: PlatformModuleId[] = ["home", "algorithms", "data-structures", "compiler", "sql-lab", "learn", "tools", "resources"];
+export const platformModuleIds: PlatformModuleId[] = ["home", "algorithms", "data-structures", "compiler", "sql-lab", "tools", "resources"];
 

@@ -154,6 +154,15 @@ export const getLessonsByCategory = (categorySlug: string, options: Omit<LessonF
 export const searchLessons = (search: string, options: Omit<LessonFilters, "search"> = {}) =>
   getLessons({ ...options, search });
 
+export const getLessonCategories = async (): Promise<CategoryRow[]> => {
+  const { data, error } = await requireSupabase()
+    .from("lesson_categories")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) throw new Error("Unable to load lesson categories.");
+  return data ?? [];
+};
+
 export const getUserProgress = async (): Promise<ProgressRow[]> => {
   const userId = await requireSessionUserId();
   const { data, error } = await requireSupabase()

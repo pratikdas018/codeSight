@@ -2,7 +2,7 @@
 
 ## Architecture
 
-AlgoLoom is a React 19/Vite SPA in `frontend/`, using `HashRouter`. The desktop build and browser deployment share the renderer, but the Electron application is not an SEO surface. The browser deployment is configured as a Vercel Vite site.
+AlgoLoom is a React 19/Vite SPA in `frontend/`. Browser deployments use `BrowserRouter` for crawlable URLs such as `/algorithms`; the Electron build uses `HashRouter` because packaged `file://` pages cannot rely on server-side history fallback. The desktop application is not an SEO surface. The browser deployment is configured as a Vercel Vite site.
 
 The only intentionally indexable URL is the public root entry point. The authenticated workspace, email-confirmation route, admin dashboard, and user-specific execution data are not public content and are excluded from crawling/indexing.
 

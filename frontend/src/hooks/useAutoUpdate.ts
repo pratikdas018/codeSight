@@ -20,7 +20,7 @@ export const useAutoUpdate = () => {
           ...defaultDesktopUpdateState,
           status: "idle",
           message: "Update service is loading...",
-          currentVersion: window.electronAPI?.env.version ?? "1.0.0",
+          currentVersion: window.electronAPI?.env.version ?? "1.0.7",
         }
       : defaultDesktopUpdateState,
   );
