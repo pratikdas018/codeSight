@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import clsx from "clsx";
+import { Link, useLocation } from "react-router-dom";
 import { CodeSightLogo } from "../components/CodeSightLogo";
 import { ExecutionVisualizer } from "../components/ExecutionVisualizer";
 import { FeedbackPanel } from "../components/FeedbackPanel";
@@ -207,6 +208,7 @@ const railItems: Array<{
   section: SectionKey;
   tab: WorkspaceTab;
   icon: string;
+  href?: string;
 }> = [
   {
     label: "Explorer",
@@ -219,6 +221,13 @@ const railItems: Array<{
     section: "flow",
     tab: "visualizer",
     icon: "insights",
+  },
+  {
+    label: "Algorithms",
+    section: "guide",
+    tab: "explorer",
+    icon: "account_tree",
+    href: "/algorithms",
   },
   {
     label: "History",
@@ -380,6 +389,7 @@ interface HomePageProps {
 }
 
 export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
+  const location = useLocation();
   const rendererLogger = useMemo(
     () => createRendererLogger("WORKBENCH"),
     [],
@@ -1916,7 +1926,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         userId: user?.id ?? null,
         context: {
           appVersion: isDesktop
-            ? window.electronAPI?.env.version ?? "1.0.0"
+            ? window.electronAPI?.env.version ?? "1.0.7"
             : "web-preview",
           currentLine: activeLineNumber,
           environment: isDesktop ? "desktop" : "web",
@@ -2142,7 +2152,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
   const footerMemoryUsage = formatMemoryUsage(trace.metrics.peakMemoryKb);
   const footerCurrentLine = activeLineNumber ? `Line ${activeLineNumber}` : "Line --";
   const appVersionLabel = isDesktop
-    ? `v${updateState.currentVersion || window.electronAPI?.env.version || "1.0.0"}`
+    ? `v${updateState.currentVersion || window.electronAPI?.env.version || "1.0.7"}`
     : "Web Preview";
   const isCheckingForUpdates = updateState.status === "checking";
   const isDownloadingUpdate = updateState.status === "downloading";
@@ -2293,23 +2303,25 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
 
               <div className="flex min-w-0 flex-1 flex-row gap-2 xl:flex-col">
                 {railItems.map((item) => {
-                  const isActive = activeRailSection === item.section;
+                  const isActive = item.href
+                    ? location.pathname.startsWith(item.href)
+                    : activeRailSection === item.section;
+                  const className = clsx(
+                    "flex min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition",
+                    isActive
+                      ? "border-[rgba(114,255,112,0.22)] bg-[rgba(114,255,112,0.08)] text-[var(--cs-primary-bright)] shadow-[inset_0_0_0_1px_rgba(114,255,112,0.04)]"
+                      : "border-transparent text-[var(--cs-text-muted)] hover:border-[var(--cs-border)] hover:bg-[rgba(255,255,255,0.02)] hover:text-[var(--cs-text)]",
+                    isSidebarCollapsed ? "justify-center xl:px-0" : "",
+                  );
+                  const content = <><span className="material-symbols-outlined text-[18px]">{item.icon}</span>{!isSidebarCollapsed ? <span className="truncate">{item.label}</span> : null}</>;
 
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => scrollToSection(item.section, item.tab)}
-                      className={clsx(
-                        "flex min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition",
-                        isActive
-                          ? "border-[rgba(114,255,112,0.22)] bg-[rgba(114,255,112,0.08)] text-[var(--cs-primary-bright)] shadow-[inset_0_0_0_1px_rgba(114,255,112,0.04)]"
-                          : "border-transparent text-[var(--cs-text-muted)] hover:border-[var(--cs-border)] hover:bg-[rgba(255,255,255,0.02)] hover:text-[var(--cs-text)]",
-                        isSidebarCollapsed ? "justify-center xl:px-0" : "",
-                      )}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
-                      {!isSidebarCollapsed ? <span className="truncate">{item.label}</span> : null}
+                  return item.href ? (
+                    <Link key={item.label} to={item.href} className={className} aria-current={isActive ? "page" : undefined}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <button key={item.label} type="button" onClick={() => scrollToSection(item.section, item.tab)} className={className} aria-current={isActive ? "page" : undefined}>
+                      {content}
                     </button>
                   );
                 })}

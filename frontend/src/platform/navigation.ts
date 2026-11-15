@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  BookOpen,
   Braces,
   Code2,
   Database,
@@ -18,7 +17,6 @@ export type PlatformModuleId =
   | "data-structures"
   | "compiler"
   | "sql-lab"
-  | "learn"
   | "tools"
   | "resources";
 
@@ -38,7 +36,6 @@ export const platformNavigation: PlatformNavItem[] = [
   { id: "data-structures", label: "Data Structures", description: "Understand data organization", href: "/data-structures", icon: Network, group: "Learn" },
   { id: "compiler", label: "Compiler", description: "Learn how programs become runnable", href: "/compiler", icon: Braces, group: "Build" },
   { id: "sql-lab", label: "SQL Lab", description: "Practice query fundamentals", href: "/sql-lab", icon: Database, group: "Build" },
-  { id: "learn", label: "Learn", description: "Follow structured lessons", href: "/learn", icon: BookOpen, group: "Learn" },
   { id: "tools", label: "Developer Tools", description: "Practical engineering utilities", href: "/tools", icon: Wrench, group: "Build" },
   { id: "resources", label: "Blog & Resources", description: "Guides and technical reading", href: "/resources", icon: Newspaper, group: "Resources" },
 ];

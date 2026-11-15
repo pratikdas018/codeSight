@@ -31,6 +31,12 @@ const PlatformModulePage = lazy(() =>
   })),
 );
 
+const DeveloperToolsPage = lazy(() =>
+  import("./pages/platform/DeveloperToolsPage").then((module) => ({
+    default: module.DeveloperToolsPage,
+  })),
+);
+
 const AlgorithmExplorerPage = lazy(() =>
   import("./pages/platform/AlgorithmExplorerPage").then((module) => ({
     default: module.AlgorithmExplorerPage,
@@ -40,12 +46,6 @@ const AlgorithmExplorerPage = lazy(() =>
 const DataStructureExplorerPage = lazy(() =>
   import("./pages/platform/DataStructureExplorerPage").then((module) => ({
     default: module.DataStructureExplorerPage,
-  })),
-);
-
-const LearnPage = lazy(() =>
-  import("./pages/platform/LearnPage").then((module) => ({
-    default: module.LearnPage,
   })),
 );
 
@@ -173,9 +173,9 @@ const App = () => {
     });
   }, [user?.id]);
 
-  const isPublicLearningRoute = window.location.pathname === "/learn";
+  const isPublicAlgorithmRoute = window.location.pathname === "/algorithms";
 
-  if (!hasSupabaseConfig && !isPublicLearningRoute) {
+  if (!hasSupabaseConfig && !isPublicAlgorithmRoute) {
     return (
       <>
         {seo}
@@ -351,6 +351,25 @@ const App = () => {
           }
         />
         <Route
+          path="/algorithms"
+          element={
+            <Suspense
+              fallback={
+                <AppStatusScreen
+                  eyebrow="Algorithms"
+                  title="Loading algorithm studio."
+                  description="AlgoLoom is preparing the interactive algorithm visualizer."
+                  showSpinner
+                />
+              }
+            >
+              <PlatformShell />
+            </Suspense>
+          }
+        >
+          <Route index element={<AlgorithmExplorerPage />} />
+        </Route>
+        <Route
           element={
             <ProtectedPlatformRoute isLoading={isLoading} isAuthenticated={Boolean(user)}>
               <Suspense
@@ -369,31 +388,11 @@ const App = () => {
           }
         >
           <Route path="/home" element={<PlatformModulePage moduleId="home" />} />
-          <Route path="/algorithms" element={<AlgorithmExplorerPage />} />
           <Route path="/data-structures" element={<DataStructureExplorerPage />} />
           <Route path="/compiler" element={<PlatformModulePage moduleId="compiler" />} />
           <Route path="/sql-lab" element={<PlatformModulePage moduleId="sql-lab" />} />
-          <Route path="/tools" element={<PlatformModulePage moduleId="tools" />} />
+          <Route path="/tools" element={<DeveloperToolsPage />} />
           <Route path="/resources" element={<PlatformModulePage moduleId="resources" />} />
-        </Route>
-        <Route
-          path="/learn"
-          element={
-            <Suspense
-              fallback={
-                <AppStatusScreen
-                  eyebrow="Learn"
-                  title="Opening your learning path."
-                  description="AlgoLoom is loading the lesson library."
-                  showSpinner
-                />
-              }
-            >
-              <PlatformShell />
-            </Suspense>
-          }
-        >
-          <Route index element={<LearnPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

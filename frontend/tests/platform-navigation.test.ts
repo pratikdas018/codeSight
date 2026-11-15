@@ -15,7 +15,6 @@ test("platform navigation exposes one entry point for every planned module", () 
     "data-structures",
     "compiler",
     "sql-lab",
-    "learn",
     "tools",
     "resources",
   ]);

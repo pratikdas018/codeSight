@@ -23,6 +23,12 @@ const pages = {
     description: DEFAULT_DESCRIPTION,
     robots: "index,follow,max-image-preview:large",
   },
+  algorithms: {
+    title: `${BRAND.name} Algorithms — Interactive Visualizations`,
+    description:
+      "Learn searching, sorting, greedy, backtracking, sliding-window, and dynamic-programming algorithms through interactive visualizations.",
+    robots: "index,follow,max-image-preview:large",
+  },
   private: {
     title: `${BRAND.name} Workspace — Visual Code Debugger`,
     description: `Authenticated ${BRAND.name} workspace for stepping through code and inspecting runtime state.`,
@@ -73,7 +79,7 @@ const structuredData = () => ({
       operatingSystem: "Windows, macOS, Linux",
       url: `${siteUrl}/`,
       downloadUrl: "https://github.com/pratikdas018/codeSight/releases/latest",
-      softwareVersion: "1.0.6",
+      softwareVersion: "1.0.7",
     },
   ],
 });
@@ -84,7 +90,7 @@ export const Seo = () => {
   useEffect(() => {
     const isAdmin = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
     const isAuthConfirm = window.location.pathname === "/auth/confirm";
-    const isPublicLearn = location.pathname === "/learn";
+    const isPublicAlgorithm = location.pathname === "/algorithms";
     const isPlatform = [
       "/home",
       "/playground",
@@ -92,12 +98,11 @@ export const Seo = () => {
       "/data-structures",
       "/compiler",
       "/sql-lab",
-      "/learn",
       "/tools",
       "/resources",
     ].includes(location.pathname);
-    const page = isAdmin ? pages.admin : isAuthConfirm || (isPlatform && !isPublicLearn) ? pages.private : pages.public;
-    const canonicalPath = isAdmin || isAuthConfirm || (isPlatform && !isPublicLearn) ? "/" : isPublicLearn ? "/learn" : "/";
+    const page = isAdmin ? pages.admin : isAuthConfirm ? pages.private : isPublicAlgorithm ? pages.algorithms : isPlatform ? pages.private : pages.public;
+    const canonicalPath = isAdmin || isAuthConfirm || (isPlatform && !isPublicAlgorithm) ? "/" : isPublicAlgorithm ? "/algorithms" : "/";
     const canonical = `${siteUrl}${canonicalPath}`;
 
     document.documentElement.lang = "en";
@@ -130,7 +135,7 @@ export const Seo = () => {
       jsonLd.dataset.codesightSchema = "true";
       document.head.appendChild(jsonLd);
     }
-    jsonLd.textContent = isAdmin || isAuthConfirm || (isPlatform && !isPublicLearn) ? "" : JSON.stringify(structuredData());
+    jsonLd.textContent = isAdmin || isAuthConfirm || (isPlatform && !isPublicAlgorithm) ? "" : JSON.stringify(structuredData());
   }, [location.pathname]);
 
   return null;

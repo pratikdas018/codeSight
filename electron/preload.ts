@@ -107,7 +107,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       process.env.VITE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED,
     siteUrl: process.env.VITE_SITE_URL,
     platform: process.platform,
-    version: process.env.npm_package_version,
+    // npm_package_version belongs to the Electron npm process (41.3.0), not the AlgoLoom app.
+    // The main process supplies the application release version explicitly.
+    version: process.env.CODESIGHT_APP_VERSION ?? "1.0.7",
     logging: {
       level: preloadLogLevel,
       verbose: verboseLoggingEnabled,

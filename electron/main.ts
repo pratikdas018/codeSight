@@ -1399,6 +1399,8 @@ app.on("second-instance", () => {
 app.whenReady().then(async () => {
   try {
     logDesktopMessage("AlgoLoom desktop startup initiated.");
+    // Keep the product release version separate from Electron's runtime version.
+    process.env.CODESIGHT_APP_VERSION = app.getVersion();
     app.setAppUserModelId("com.pratik.codesight");
     validateDesktopBundle();
     updateService = new UpdateService({

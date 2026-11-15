@@ -28,7 +28,7 @@ export interface UpdateState {
 }
 
 export const defaultDesktopUpdateState: UpdateState = {
-  currentVersion: "1.0.0",
+  currentVersion: "1.0.7",
   latestVersion: null,
   releaseName: null,
   releaseDate: null,
