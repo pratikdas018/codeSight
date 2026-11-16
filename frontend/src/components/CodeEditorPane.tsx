@@ -238,7 +238,7 @@ export const CodeEditorPane = ({
           isDark ? "border-slate-700" : "border-slate-200",
         )}
       >
-        <div className="min-w-[220px] flex-1">
+        <div className="min-w-0 flex-1">
           <p
             className={clsx(
               "font-mono text-xs uppercase tracking-[0.3em]",
@@ -317,7 +317,7 @@ export const CodeEditorPane = ({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-[22rem] min-w-0 flex-1 overflow-hidden sm:min-h-[28rem]">
         <Editor
           height="100%"
           defaultLanguage={monacoLanguageMap[language]}

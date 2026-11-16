@@ -19,10 +19,10 @@ const buttonVariants = cva(
           "border border-rose-500/20 bg-rose-500/10 px-4 py-2.5 text-rose-100 hover:bg-rose-500/15",
       },
       size: {
-        default: "h-10",
-        sm: "h-9 px-3 text-xs",
+        default: "h-11",
+        sm: "h-10 px-3 text-xs",
         lg: "h-11 px-5",
-        icon: "h-10 w-10",
+        icon: "h-11 w-11",
       },
     },
     defaultVariants: {

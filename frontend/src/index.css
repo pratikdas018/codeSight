@@ -97,8 +97,28 @@ body {
     radial-gradient(circle at top left, var(--cs-body-spot), transparent 28%),
     linear-gradient(180deg, var(--cs-body-start) 0%, var(--cs-body-mid) 56%, var(--cs-body-end) 100%);
   color: var(--cs-text);
-  overflow-x: hidden;
   transition: background 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.cs-scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.cs-page-content {
+  min-width: 0;
+  width: 100%;
 }
 
 body::before,

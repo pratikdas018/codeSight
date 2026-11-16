@@ -2261,7 +2261,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1900px] px-3 pb-24 pt-4 sm:px-4 lg:px-6">
+      <div className="cs-page-content mx-auto max-w-[1900px] px-3 pb-24 pt-4 sm:px-4 lg:px-6">
         <div
           className={clsx(
             "grid gap-4",
@@ -2272,11 +2272,11 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
         >
           <aside
             className={clsx(
-              "cs-panel cs-panel-strong flex h-fit flex-row gap-2 p-2 xl:min-h-[calc(100vh-11rem)] xl:flex-col xl:justify-between",
+              "cs-panel cs-panel-strong flex h-fit min-w-0 flex-row gap-2 overflow-x-auto p-2 xl:min-h-[calc(100vh-11rem)] xl:flex-col xl:justify-between xl:overflow-visible",
               isSidebarCollapsed ? "xl:w-[76px]" : "xl:w-[210px]",
             )}
           >
-            <div className="flex min-w-0 flex-1 flex-row gap-2 xl:flex-col">
+            <div className="flex min-w-max flex-1 flex-row gap-2 xl:min-w-0 xl:flex-col">
               {!isSidebarCollapsed ? (
                 <div className="hidden rounded-[1.35rem] border border-[var(--cs-border)] bg-[linear-gradient(180deg,rgba(17,20,17,0.95),rgba(10,12,10,0.96))] p-4 xl:block">
                   <div className="flex items-center gap-3">
@@ -2301,7 +2301,7 @@ export const HomePage = ({ onGlobalNotice }: HomePageProps) => {
                 </div>
               ) : null}
 
-              <div className="flex min-w-0 flex-1 flex-row gap-2 xl:flex-col">
+              <div className="flex min-w-max flex-1 flex-row gap-2 xl:min-w-0 xl:flex-col">
                 {railItems.map((item) => {
                   const isActive = item.href
                     ? location.pathname.startsWith(item.href)
