@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { BRAND } from "./brand";
 
-const PRODUCTION_SITE_URL = "https://getcodesight.vercel.app";
+const PRODUCTION_SITE_URL = "https://algoloom-code.vercel.app";
 const DEFAULT_TITLE = `${BRAND.name} — Interactive Code Learning Platform`;
 const DEFAULT_DESCRIPTION =
   `${BRAND.tagline} Learn programming, visualize execution step by step, and inspect variables, stack, and heap memory.`;

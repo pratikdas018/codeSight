@@ -19,6 +19,12 @@ const HomePage = lazy(() =>
   })),
 );
 
+const PublicLandingPage = lazy(() =>
+  import("./pages/PublicLandingPage").then((module) => ({
+    default: module.PublicLandingPage,
+  })),
+);
+
 const PlatformShell = lazy(() =>
   import("./components/platform/PlatformShell").then((module) => ({
     default: module.PlatformShell,
@@ -95,6 +101,8 @@ const App = () => {
   const [notice, setNotice] = useState<Notice | null>(null);
   const rendererLogger = createRendererLogger("RENDERER");
   const isAuthConfirmRoute = window.location.pathname === "/auth/confirm";
+  const isElectron = Boolean(window.electronAPI?.env.isElectron);
+  const isAuthEntry = new URLSearchParams(window.location.search).get("auth") === "1";
   const {
     user,
     pendingConfirmationEmail,
@@ -175,7 +183,7 @@ const App = () => {
 
   const isPublicAlgorithmRoute = window.location.pathname === "/algorithms";
 
-  if (!hasSupabaseConfig && !isPublicAlgorithmRoute) {
+  if (!hasSupabaseConfig && !isPublicAlgorithmRoute && window.location.pathname !== "/" && window.location.pathname !== "/auth/confirm") {
     return (
       <>
         {seo}
@@ -205,7 +213,27 @@ const App = () => {
           path="/"
           element={
             <AnimatePresence mode="wait">
-              {isLoading ? (
+              {!isElectron && !isAuthEntry ? (
+                <motion.div
+                  key="landing"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.24, ease: "easeOut" }}
+                >
+                  <Suspense
+                    fallback={
+                      <AppStatusScreen
+                        eyebrow="AlgoLoom"
+                        title="Preparing the learning platform."
+                        description="Loading the public AlgoLoom experience."
+                        showSpinner
+                      />
+                    }
+                  >
+                    <PublicLandingPage />
+                  </Suspense>
+                </motion.div>
+              ) : isLoading ? (
                 <motion.div key="loading" exit={{ opacity: 0 }}>
                   <AppStatusScreen
                     eyebrow="Launching"

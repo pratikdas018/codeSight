@@ -8,7 +8,7 @@ The only intentionally indexable URL is the public root entry point. The authent
 
 ## Canonical domain and metadata
 
-The current canonical production URL is `https://getcodesight.vercel.app`, based on the existing Vercel deployment reference. Metadata is centralized in `frontend/src/seo.tsx`; the HTML shell in `frontend/index.html` provides a crawlable fallback before JavaScript runs.
+The current canonical production URL is `https://algoloom-code.vercel.app`, based on the preferred Vercel project domain. Metadata is centralized in `frontend/src/seo.tsx`; the HTML shell in `frontend/index.html` provides a crawlable fallback before JavaScript runs.
 
 Set `VITE_SITE_URL` in the Vercel project if a custom domain becomes the preferred production host. It should be an HTTPS origin without a trailing slash. The same variable is used by the runtime metadata layer. The checked-in sitemap and robots file must also be updated when the canonical domain changes.
 
@@ -26,7 +26,7 @@ The structured data uses verified product facts from the repository: AlgoLoom, i
 
 1. In Google Search Console, add the preferred domain property. Domain-property verification via the DNS TXT record is preferred; the DNS record is managed at the domain provider.
 2. For the current URL-prefix property, the verification meta tag is implemented in `frontend/index.html` and `frontend/src/seo.tsx` with the token supplied by Google Search Console. Redeploy Vercel, then click **Verify**. If Google generates a new token, replace the value in both files or configure `VITE_GOOGLE_SITE_VERIFICATION` in Vercel.
-3. Submit `https://getcodesight.vercel.app/sitemap.xml` (or the custom-domain equivalent).
+3. Submit `https://algoloom-code.vercel.app/sitemap.xml` (or the custom-domain equivalent).
 4. Use URL Inspection for the homepage, request indexing when appropriate, and review Pages/Indexing and Core Web Vitals reports.
 
 No Search Console verification or sitemap submission has been performed by this repository change; those require access to the Google and deployment accounts.

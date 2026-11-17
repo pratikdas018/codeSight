@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /auth/
 
-Sitemap: https://getcodesight.vercel.app/sitemap.xml
+Sitemap: https://algoloom-code.vercel.app/sitemap.xml
